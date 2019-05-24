@@ -64,8 +64,8 @@ type Chief struct {
 	// EnableByDefault sets all the working `Enabled`
 	// if none of the workers is passed on to enable.
 	EnableByDefault bool
-	// Name identifier of instance for logger and etc.
-	Name string
+	// AppName main app identifier of instance for logger and etc.
+	AppName string
 	// RestartAllOnFail sets the force restart of all workers
 	// if one of them failed.
 	RestartAllOnFail bool
@@ -73,7 +73,7 @@ type Chief struct {
 
 func NewChief(name string, enableByDefault bool, restartAllOnFail bool, logger *logrus.Entry) *Chief {
 	chief := Chief{
-		Name:             name,
+		AppName:          name,
 		EnableByDefault:  enableByDefault,
 		RestartAllOnFail: restartAllOnFail}
 	return chief.Init(logger)
@@ -82,7 +82,7 @@ func NewChief(name string, enableByDefault bool, restartAllOnFail bool, logger *
 
 func (chief *Chief) Init(logger *logrus.Entry) *Chief {
 	chief.logger = logger.WithFields(logrus.Fields{
-		"app":     chief.Name,
+		"app":     chief.AppName,
 		"service": "worker-chief",
 	})
 
@@ -141,9 +141,9 @@ func (chief *Chief) AddValueToContext(key, value interface{}) {
 // RunAll start worker pool and lock context
 // until it intercepts `syscall.SIGTERM`, `syscall.SIGINT`.
 // NOTE: Use this method ONLY as a top-level action.
-func (chief *Chief) RunAll(appName string, workers ...string) error {
+func (chief *Chief) RunAll(workers ...string) error {
 	waitForSignal := func() {
-		var gracefulStop = make(chan os.Signal)
+		var gracefulStop = make(chan os.Signal, 1)
 		signal.Notify(gracefulStop, syscall.SIGTERM, syscall.SIGINT)
 
 		exitSignal := <-gracefulStop
@@ -151,18 +151,18 @@ func (chief *Chief) RunAll(appName string, workers ...string) error {
 			Info("Received signal. Terminating service...")
 	}
 
-	return chief.RunWithLocker(appName, waitForSignal, workers...)
+	return chief.RunWithLocker(waitForSignal, workers...)
 }
 
-func (chief *Chief) RunWithContext(appName string, ctx context.Context, workers ...string) error {
+func (chief *Chief) RunWithContext(ctx context.Context, workers ...string) error {
 	waitForSignal := func() {
 		<-ctx.Done()
 	}
 
-	return chief.RunWithLocker(appName, waitForSignal, workers...)
+	return chief.RunWithLocker(waitForSignal, workers...)
 }
 
-func (chief *Chief) RunWithLocker(appName string, locker func(), workers ...string) (err error) {
+func (chief *Chief) RunWithLocker(locker func(), workers ...string) (err error) {
 	poolStopped := make(chan struct{})
 	executionUnlocked := make(chan struct{}, 2)
 	startPoolCtx, startPollCancel := context.WithCancel(context.Background())
@@ -172,7 +172,7 @@ func (chief *Chief) RunWithLocker(appName string, locker func(), workers ...stri
 	ctxLocker := NewContextLocker(locker)
 	ctxLockerCancel := ctxLocker.CancelFunc()
 
-hell:
+dawn:
 
 	go func() {
 		//locker function should block
@@ -195,13 +195,10 @@ hell:
 	}()
 
 	go func() {
-		for {
-			select {
-			case s := <-chief.workersSignals:
-				if s.sig == signalUnexpectedStop && chief.RestartAllOnFail {
-					ctxLockerCancel()
-					restartAll = true
-				}
+		for s := range chief.workersSignals {
+			if s.sig == signalUnexpectedStop && chief.RestartAllOnFail {
+				ctxLockerCancel()
+				restartAll = true
 			}
 		}
 	}()
@@ -211,7 +208,7 @@ hell:
 	select {
 	case <-poolStopped:
 		if restartAll {
-			goto hell
+			goto dawn
 		}
 		chief.logger.Info("Graceful exit.")
 		return nil
@@ -241,7 +238,7 @@ func (chief *Chief) StartPool(parentCtx context.Context) int {
 
 	chief.active = true
 	wg := sync.WaitGroup{}
-	chief.logger.Info(chief.Name + " started")
+	chief.logger.Info(chief.AppName + " started")
 	ctx, cancel := context.WithCancel(chief.ctx)
 
 	for name, worker := range chief.wPool.workers {

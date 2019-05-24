@@ -29,8 +29,8 @@ func (m mockWorker) Init(context.Context) Worker {
 func (m mockWorker) RestartOnFail() bool {
 	return false
 }
-func (m mockWorker) Run() {
-
+func (m mockWorker) Run() ExitCode {
+	return ExitCodeOk
 }
 
 // initPool returns WorkerPool instance suitable for most tests
@@ -291,11 +291,6 @@ func TestWorkerPool_SetState(t *testing.T) {
 func TestWorkerPool_SetWorker(t *testing.T) {
 
 	testPool := new(WorkerPool)
-
-	type args struct {
-		name   string
-		worker Worker
-	}
 
 	tests := []test{
 		{

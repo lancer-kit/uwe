@@ -14,15 +14,18 @@ var (
 
 // WorkerPool is
 type WorkerPool struct {
-	workers map[string]Worker
-	states  map[string]WorkerState
-	rw      sync.RWMutex
+	//workers map[string]Worker
+	//states  map[string]WorkerState
+
+	rw   sync.RWMutex
+	pool map[string]*Worker
 }
 
 //GetWorker -  get Worker interface by name
 func (pool *WorkerPool) GetWorker(name string) Worker {
-	pool.rw.Lock()
-	defer pool.rw.Unlock()
+	pool.rw.RLock()
+	defer pool.rw.RUnlock()
+
 	if wk, ok := pool.workers[name]; ok {
 		return wk
 	}
@@ -31,8 +34,8 @@ func (pool *WorkerPool) GetWorker(name string) Worker {
 
 // GetState returns current state for workers with the specified `name`.
 func (pool *WorkerPool) GetState(name string) WorkerState {
-	pool.rw.Lock()
-	defer pool.rw.Unlock()
+	pool.rw.RLock()
+	defer pool.rw.RUnlock()
 	if wk, ok := pool.states[name]; ok {
 		return wk
 	}
@@ -56,10 +59,6 @@ func (pool *WorkerPool) IsEnabled(name string) bool {
 
 // IsAlive checks is active worker with passed `name`.
 func (pool *WorkerPool) IsAlive(name string) bool {
-	if pool.states == nil {
-		return false
-	}
-
 	state := pool.GetState(name)
 	return state == WorkerRun
 }
@@ -114,29 +113,29 @@ func (pool *WorkerPool) FailWorker(name string) {
 
 // SetState updates state of specified worker.
 func (pool *WorkerPool) SetState(name string, state WorkerState) {
-	pool.rw.Lock()
-	defer pool.rw.Unlock()
-
 	pool.check()
+
+	pool.rw.Lock()
 	pool.states[name] = state
+	pool.rw.Unlock()
 }
 
 // SetWorker adds worker into pool.
 func (pool *WorkerPool) SetWorker(name string, worker Worker) {
-	pool.rw.Lock()
-	defer pool.rw.Unlock()
-
 	pool.check()
+
+	pool.rw.Lock()
 	pool.workers[name] = worker
 	pool.states[name] = WorkerPresent
+	pool.rw.Unlock()
 }
 
 func (pool *WorkerPool) ReplaceWorker(name string, worker Worker) {
-	pool.rw.Lock()
-	defer pool.rw.Unlock()
-
 	pool.check()
+
+	pool.rw.Lock()
 	pool.workers[name] = worker
+	pool.rw.Unlock()
 }
 
 // RunWorkerExec adds worker into pool.
@@ -160,17 +159,28 @@ func (pool *WorkerPool) RunWorkerExec(name string) (err error) {
 	}
 
 	pool.StartWorker(name)
-	pool.workers[name].Run()
-	pool.StopWorker(name)
+	extCode := pool.workers[name].Run()
+	switch extCode {
+	case ExitCodeOk:
+		pool.StopWorker(name)
+	case ExitCodeFailed:
+		pool.FailWorker(name)
+	case ExitCodeInterrupted:
+		pool.FailWorker(name)
+	}
 
 	return
 }
 
 func (pool *WorkerPool) check() {
+	pool.rw.Lock()
+
 	if pool.states == nil {
 		pool.states = make(map[string]WorkerState)
 	}
 	if pool.workers == nil {
 		pool.workers = make(map[string]Worker)
 	}
+
+	pool.rw.Unlock()
 }

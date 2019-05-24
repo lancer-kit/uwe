@@ -12,5 +12,16 @@ type Worker interface {
 	// RestartOnFail determines the need to restart the worker, if it stopped.
 	RestartOnFail() bool
 	// Run starts the `Worker` instance execution.
-	Run() // todo(mike): add exit code result
+	Run() ExitCode
 }
+
+type ExitCode int
+
+const (
+	// ExitCodeOk means that the worker is stopped.
+	ExitCodeOk ExitCode = iota
+	// ExitCodeInterrupted means that the work cycle has been interrupted and can be restarted.
+	ExitCodeInterrupted
+	// ExitCodeFailed means that the worker fails.
+	ExitCodeFailed
+)

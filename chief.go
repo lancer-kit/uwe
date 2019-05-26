@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/sheb-gregor/sam"
 	"github.com/sirupsen/logrus"
 )
 
@@ -24,34 +25,14 @@ const (
 // ForceStopTimeout is a timeout for killing all workers.
 var ForceStopTimeout = 45 * time.Second
 
-type execStatus string
-
-const (
-	signalOk             execStatus = "ok"
-	signalInterrupted    execStatus = "interrupted"
-	signalFailure        execStatus = "failure"
-	signalStop           execStatus = "stop"
-	signalUnexpectedStop execStatus = "unexpected_stop"
-)
-
-type workerSignal struct {
-	name string
-	sig  execStatus
-	msg  string
-}
-
-func (s *workerSignal) Error() string {
-	return fmt.Sprintf("%s(%v); %s", s.name, s.sig, s.msg)
-}
-
 // Chief is a head of workers, it must be used to register, initialize
 // and correctly start and stop asynchronous executors of the type `Worker`.
 type Chief struct {
-	//ctx    context.Context
-	//cancel context.CancelFunc
 	logger *logrus.Entry
 	ctx    context.Context
-	wPool  WorkerPool
+	//cancel context.CancelFunc
+
+	wPool WorkerPool
 
 	// active indicates that the `Chief` has been started.
 	active bool
@@ -61,72 +42,80 @@ type Chief struct {
 	// systemEvents
 	workersSignals chan workerSignal
 
+	workersEventHub map[WorkerName]chan Message
+	eventHub        chan Message
+
 	// EnableByDefault sets all the working `Enabled`
 	// if none of the workers is passed on to enable.
 	EnableByDefault bool
 	// AppName main app identifier of instance for logger and etc.
 	AppName string
-	// RestartAllOnFail sets the force restart of all workers
-	// if one of them failed.
-	RestartAllOnFail bool
 }
 
-func NewChief(name string, enableByDefault bool, restartAllOnFail bool, logger *logrus.Entry) *Chief {
+// NewChief creates and initialize new instance of `Chief`
+func NewChief(name string, enableByDefault bool, logger *logrus.Entry) *Chief {
 	chief := Chief{
-		AppName:          name,
-		EnableByDefault:  enableByDefault,
-		RestartAllOnFail: restartAllOnFail}
+		AppName:         name,
+		EnableByDefault: enableByDefault}
 	return chief.Init(logger)
-
 }
 
+// Init initializes all internal states properly.
 func (chief *Chief) Init(logger *logrus.Entry) *Chief {
 	chief.logger = logger.WithFields(logrus.Fields{
 		"app":     chief.AppName,
 		"service": "worker-chief",
 	})
 
-	chief.ctx = context.Background()
-	chief.ctx = context.WithValue(chief.ctx, CtxKeyLog, chief.logger)
-	chief.workersSignals = make(chan workerSignal, 4)
+	chief.ctx = context.WithValue(context.Background(), CtxKeyLog, chief.logger)
 	chief.initialized = true
+
+	chief.workersSignals = make(chan workerSignal, 4)
 
 	return chief
 }
 
 // AddWorker register a new `Worker` to the `Chief` worker pool.
-func (chief *Chief) AddWorker(name string, worker Worker) {
+func (chief *Chief) AddWorker(name WorkerName, worker Worker) {
 	chief.wPool.SetWorker(name, worker)
 }
 
 // EnableWorkers enables all worker from the `names` list.
 // By default, all added workers are enabled. After the first call
 // of this method, only directly enabled workers will be active
-func (chief *Chief) EnableWorkers(names ...string) {
+func (chief *Chief) EnableWorkers(names ...WorkerName) (err error) {
 	for _, name := range names {
-		chief.wPool.EnableWorker(name)
+		err = chief.wPool.EnableWorker(name)
+		if err != nil {
+			return
+		}
 	}
 
 	if len(names) == 0 && chief.EnableByDefault {
 		for name := range chief.wPool.workers {
-			chief.wPool.EnableWorker(name)
+			err = chief.wPool.EnableWorker(name)
+			if err != nil {
+				return
+			}
 		}
 	}
+
+	return nil
 }
 
 // EnableWorker enables the worker with the specified `name`.
 // By default, all added workers are enabled. After the first call
 // of this method, only directly enabled workers will be active
-func (chief *Chief) EnableWorker(name string) {
-	chief.wPool.EnableWorker(name)
+func (chief *Chief) EnableWorker(name WorkerName) error {
+	return chief.wPool.EnableWorker(name)
 }
 
 // IsEnabled checks is enable worker with passed `name`.
-func (chief *Chief) IsEnabled(name string) bool {
+func (chief *Chief) IsEnabled(name WorkerName) bool {
 	return chief.wPool.IsEnabled(name)
 }
 
-func (chief *Chief) GetWorkersStates() map[string]WorkerState {
+func (chief *Chief) GetWorkersStates() map[WorkerName]sam.State {
 	return chief.wPool.GetWorkersStates()
 }
 
@@ -141,7 +130,7 @@ func (chief *Chief) AddValueToContext(key, value interface{}) {
 // RunAll start worker pool and lock context
 // until it intercepts `syscall.SIGTERM`, `syscall.SIGINT`.
 // NOTE: Use this method ONLY as a top-level action.
-func (chief *Chief) RunAll(workers ...string) error {
+func (chief *Chief) RunAll(workers ...WorkerName) error {
 	waitForSignal := func() {
 		var gracefulStop = make(chan os.Signal, 1)
 		signal.Notify(gracefulStop, syscall.SIGTERM, syscall.SIGINT)
@@ -154,7 +143,7 @@ func (chief *Chief) RunAll(workers ...string) error {
 	return chief.RunWithLocker(waitForSignal, workers...)
 }
 
-func (chief *Chief) RunWithContext(ctx context.Context, workers ...string) error {
+func (chief *Chief) RunWithContext(ctx context.Context, workers ...WorkerName) error {
 	waitForSignal := func() {
 		<-ctx.Done()
 	}
@@ -162,66 +151,48 @@ func (chief *Chief) RunWithContext(ctx context.Context, workers ...string) error
 	return chief.RunWithLocker(waitForSignal, workers...)
 }
 
-func (chief *Chief) RunWithLocker(locker func(), workers ...string) (err error) {
-	poolStopped := make(chan struct{})
-	executionUnlocked := make(chan struct{}, 2)
-	startPoolCtx, startPollCancel := context.WithCancel(context.Background())
+// RunWithLocker
+// `locker` function should block the execution context and wait for some signal to stop.
+func (chief *Chief) RunWithLocker(locker func(), workers ...WorkerName) (err error) {
+	err = chief.EnableWorkers(workers...)
+	if err != nil {
+		return
+	}
 
-	chief.EnableWorkers(workers...)
-
-	ctxLocker := NewContextLocker(locker)
-	ctxLockerCancel := ctxLocker.CancelFunc()
-
-dawn:
-
+	lockerDone := make(chan struct{})
+	poolCtx, poolCanceler := context.WithCancel(context.Background())
 	go func() {
-		//locker function should block
-		// the execution context and
-		// wait for some signal to stop.
-		ctxLocker.Lock()
-		startPollCancel()
-		executionUnlocked <- struct{}{}
+		locker()
+		poolCanceler()
+		lockerDone <- struct{}{}
 	}()
-	var restartAll bool
 
+	poolStopped := make(chan struct{})
 	go func() {
-		exitCode := chief.StartPool(startPoolCtx)
+		exitCode := chief.StartPool(poolCtx)
 		if exitCode == workerPoolStartFailed {
 			err = errors.New("worker pool starting failed")
+			lockerDone <- struct{}{}
 		}
 
-		executionUnlocked <- struct{}{}
 		poolStopped <- struct{}{}
 	}()
 
-	go func() {
-		for s := range chief.workersSignals {
-			if s.sig == signalUnexpectedStop && chief.RestartAllOnFail {
-				ctxLockerCancel()
-				restartAll = true
-			}
-		}
-	}()
-
-	<-executionUnlocked
+	<-lockerDone
 
 	select {
 	case <-poolStopped:
-		if restartAll {
-			goto dawn
-		}
 		chief.logger.Info("Graceful exit.")
-		return nil
+		return
 	case <-time.NewTimer(ForceStopTimeout).C:
 		chief.logger.Warn("Graceful exit timeout exceeded. Force exit.")
-		return nil
+		return
 	}
 }
 
 const (
-	workerPoolStartFailed            = -1
-	workerPoolStoppedProperly        = 0
-	workerPoolStoppedUnintentionally = 1
+	workerPoolStartFailed     = -1
+	workerPoolStoppedProperly = 0
 )
 
 // StartPool runs all registered workers, locks until the `parentCtx` closes,
@@ -229,7 +200,6 @@ const (
 // Returns result code:
 // 	-1 — start failed
 // 	 0 — stopped properly
-// 	 1 — stopped unintentionally
 func (chief *Chief) StartPool(parentCtx context.Context) int {
 	if !chief.initialized {
 		logrus.Error("Workers is not initialized! Unable to start.")
@@ -239,18 +209,32 @@ func (chief *Chief) StartPool(parentCtx context.Context) int {
 	chief.active = true
 	wg := sync.WaitGroup{}
 	chief.logger.Info(chief.AppName + " started")
+
+	var runCount int
 	ctx, cancel := context.WithCancel(chief.ctx)
 
-	for name, worker := range chief.wPool.workers {
-		if !chief.wPool.IsEnabled(name) {
+	for name := range chief.wPool.workers {
+		if chief.wPool.IsDisabled(name) {
 			chief.logger.WithField("worker", name).
 				Debug("Worker disabled")
 			continue
 		}
-		chief.wPool.InitWorker(name, ctx)
 
+		if err := chief.wPool.InitWorker(name, ctx); err != nil {
+			chief.logger.WithField("worker", name).
+				Debug("Worker disabled")
+			continue
+		}
+
+		runCount++
 		wg.Add(1)
-		go chief.runWorker(name, worker, wg.Done)
+		wCtx := NewContext(name, ctx)
+		go chief.runWorker(name, wCtx, wg.Done)
+	}
+
+	if runCount == 0 {
+		chief.logger.Warn("No worker was running")
+		return workerPoolStartFailed
 	}
 
 	<-parentCtx.Done()
@@ -261,12 +245,12 @@ func (chief *Chief) StartPool(parentCtx context.Context) int {
 	cancel()
 
 	wg.Wait()
-	chief.logger.Info("Workers stopped")
+	chief.logger.Info("Workers pool stopped")
 
 	return workerPoolStoppedProperly
 }
 
-func (chief *Chief) runWorker(name string, worker Worker, doneCall func()) {
+func (chief *Chief) runWorker(name WorkerName, wCtx WContext, doneCall func()) {
 	defer doneCall()
 
 	defer func() {
@@ -281,28 +265,27 @@ func (chief *Chief) runWorker(name string, worker Worker, doneCall func()) {
 		chief.workersSignals <- workerSignal{name: name, sig: signalFailure, msg: e.Error()}
 	}()
 
-	chief.logger.WithField("worker", name).Info("Starting worker")
+	logger := chief.logger.WithField("worker", name)
+	logger.Info("Starting worker")
 
 startWorker:
-	err := chief.wPool.RunWorkerExec(name)
+
+	err := chief.wPool.RunWorkerExec(name, wCtx)
 	if err != nil {
-		chief.logger.WithError(err).
-			WithField("worker", name).
+		logger.WithError(err).
 			Error("Worker failed")
 
-		if chief.RestartAllOnFail {
-			chief.wPool.StopWorker(name)
-			chief.workersSignals <- workerSignal{name: name, sig: signalUnexpectedStop}
-			return
-		}
-
-		if worker.RestartOnFail() && chief.active {
+		if chief.wPool.getWorker(name).worker.RestartOnFail() && chief.active {
 			time.Sleep(time.Second)
-			chief.logger.WithField("worker", name).Warn("Do worker restart...")
+			logger.Warn("Do worker restart...")
 			goto startWorker
 		}
 	}
 
-	chief.wPool.StopWorker(name)
+	err = chief.wPool.StopWorker(name)
+	if err != nil {
+		logger.WithError(err).
+			Error("Worker state change failed")
+	}
 	chief.workersSignals <- workerSignal{name: name, sig: signalStop}
 }

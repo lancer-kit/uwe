@@ -12,7 +12,7 @@ type Worker interface {
 	// RestartOnFail determines the need to restart the worker, if it stopped.
 	RestartOnFail() bool
 	// Run starts the `Worker` instance execution.
-	Run() ExitCode
+	Run(ctx WContext) ExitCode
 }
 
 type ExitCode int
@@ -24,4 +24,6 @@ const (
 	ExitCodeInterrupted
 	// ExitCodeFailed means that the worker fails.
 	ExitCodeFailed
+	// ExitNeedReInit means that the worker can't do job and requires reinitialization.
+	ExitReinitReq
 )

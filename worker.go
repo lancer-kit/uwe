@@ -3,56 +3,56 @@ package uwe
 import (
 	"context"
 
-	"github.com/lancer-kit/uwe/sm"
+	"github.com/sheb-gregor/sam"
+	"github.com/sirupsen/logrus"
 )
 
-// wro worker runtime object, hold worker instance, state and communication chanel
-type wro struct {
+// workerRO worker runtime object, hold worker instance, state and communication chanel
+type workerRO struct {
+	sam.StateMachine
 	worker   Worker
-	state    sm.StateMachine
 	canceler context.CancelFunc
-	eventBus chan WorkerEvent
+	eventBus chan Message
 	exitCode *ExitCode
 }
 
-type WorkerEvent struct {
-	UID  int64
-	Data interface{}
-}
-
-func (pool *WorkerPool) getWRO(name string) (*wro, bool) {
-	workerRO, ok := pool.pool[name]
-	if !ok {
-		return nil, ok
-	}
-
-	return workerRO, ok
-}
-
 const (
-	WStateDisabled    sm.State = "Disabled"
-	WStateEnabled     sm.State = "Enabled"
-	WStateInitialized sm.State = "Initialized"
-	WStateRun         sm.State = "Run"
-	WStateStopped     sm.State = "Stopped"
-	WStateFailed      sm.State = "Failed"
+	WStateDisabled    sam.State = "Disabled"
+	WStateEnabled     sam.State = "Enabled"
+	WStateInitialized sam.State = "Initialized"
+	WStateRun         sam.State = "Run"
+	WStateStopped     sam.State = "Stopped"
+	WStateFailed      sam.State = "Failed"
 )
 
-// newWorkerSM returns filled state machine of worker lifecycle
+// WorkersStates list of valid workers states
+var WorkersStates = map[sam.State]struct{}{
+	WStateDisabled:    {},
+	WStateEnabled:     {},
+	WStateInitialized: {},
+	WStateRun:         {},
+	WStateStopped:     {},
+	WStateFailed:      {},
+}
+
+// newWorkerSM returns filled state machine of the worker lifecycle
 //
 // (*) -> [Disabled] -> [Enabled] -> [Initialized] -> [Run] <-> [Stopped]
 //          ↑ ↑____________|  |          |  |  ↑         |
 //          |_________________|__________|  |  |------|  ↓
 //                            |-------------|-----> [Failed]
+func newWorkerSM() sam.StateMachine {
+	workerSM, err := sam.NewStateMachine().
+		AddTransitions(WStateDisabled, WStateEnabled).
+		AddTransitions(WStateEnabled, WStateInitialized, WStateFailed, WStateDisabled).
+		AddTransitions(WStateInitialized, WStateRun, WStateFailed, WStateDisabled).
+		AddTransitions(WStateRun, WStateStopped, WStateFailed).
+		AddTransitions(WStateStopped, WStateRun).
+		AddTransitions(WStateFailed, WStateInitialized, WStateDisabled).
+		Finalize(WStateDisabled)
+	if err != nil || workerSM == nil {
+		logrus.Fatal("worker state machine init failed: ", err)
+	}
 
-func newWorkerSM() sm.StateMachine {
-	workerSM := sm.NewStateMachine()
-	_ = workerSM.AddTransitions(WStateDisabled, WStateEnabled)
-	_ = workerSM.AddTransitions(WStateEnabled, WStateInitialized, WStateFailed, WStateDisabled)
-	_ = workerSM.AddTransitions(WStateInitialized, WStateRun, WStateFailed, WStateDisabled)
-	_ = workerSM.AddTransitions(WStateRun, WStateStopped, WStateFailed)
-	_ = workerSM.AddTransitions(WStateStopped, WStateRun)
-	_ = workerSM.AddTransitions(WStateFailed, WStateInitialized, WStateDisabled)
-	workerSM.SetState(WStateDisabled)
-	return workerSM
+	return workerSM.Clone()
 }

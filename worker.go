@@ -42,7 +42,8 @@ var WorkersStates = map[sam.State]struct{}{
 //          |_________________|__________|  |  |------|  ↓
 //                            |-------------|-----> [Failed]
 func newWorkerSM() sam.StateMachine {
-	workerSM, err := sam.NewStateMachine().
+	sm := sam.NewStateMachine()
+	workerSM, err := sm.
 		AddTransitions(WStateDisabled, WStateEnabled).
 		AddTransitions(WStateEnabled, WStateInitialized, WStateFailed, WStateDisabled).
 		AddTransitions(WStateInitialized, WStateRun, WStateFailed, WStateDisabled).

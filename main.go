@@ -1,14 +1,14 @@
 package uwe
 
-import (
-	"context"
-)
+import "context"
 
 // Worker is an interface for async workers
 // which launches and manages by the `Chief`.
 type Worker interface {
-	// Init initializes new instance of the `Worker` implementation.
-	Init(context.Context) Worker
+	// Init initializes new instance of the `Worker` implementation,
+	// this context should be used only as Key/Value transmitter,
+	// DO NOT use it for `<- ctx.Done()`
+	Init(ctx context.Context) Worker
 	// RestartOnFail determines the need to restart the worker, if it stopped.
 	RestartOnFail() bool
 	// Run starts the `Worker` instance execution.

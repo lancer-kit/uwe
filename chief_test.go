@@ -154,7 +154,7 @@ func TestChief_RunAll(t *testing.T) {
 			_ = syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 		}()
 
-		err := tt.chief.RunAll("Test chief", "dummyWorker")
+		err := tt.chief.Run("Test chief", "dummyWorker")
 		require.NoError(err)
 		require.Falsef(tt.chief.active, "Chief is still active after shuttdowning of workers")
 		logrus.Info(fmt.Sprintf("%s finished successfully", tt.name))

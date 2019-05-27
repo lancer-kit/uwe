@@ -11,7 +11,9 @@ import (
 )
 
 var (
-	ErrWorkerNotInitialized = errors.New("worker not initialized")
+	ErrWorkerNotExist = func(name WorkerName) error {
+		return fmt.Errorf("%s: not exist", name)
+	}
 )
 
 // WorkerPool is
@@ -183,6 +185,11 @@ func (pool *WorkerPool) SetState(name WorkerName, state sam.State) error {
 	pool.check()
 
 	pool.rw.Lock()
+	_, ok := pool.workers[name]
+	if !ok {
+		return ErrWorkerNotExist(name)
+	}
+
 	err := pool.workers[name].GoTo(state)
 	pool.rw.Unlock()
 	return errors.Wrap(err, string(name))

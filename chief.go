@@ -127,10 +127,10 @@ func (chief *Chief) AddValueToContext(key, value interface{}) {
 	chief.ctx = context.WithValue(chief.ctx, key, value)
 }
 
-// RunAll start worker pool and lock context
+// Run enables passed workers, starts worker pool and lock context
 // until it intercepts `syscall.SIGTERM`, `syscall.SIGINT`.
 // NOTE: Use this method ONLY as a top-level action.
-func (chief *Chief) RunAll(workers ...WorkerName) error {
+func (chief *Chief) Run(workers ...WorkerName) error {
 	waitForSignal := func() {
 		var gracefulStop = make(chan os.Signal, 1)
 		signal.Notify(gracefulStop, syscall.SIGTERM, syscall.SIGINT)

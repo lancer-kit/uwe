@@ -42,8 +42,8 @@ type Chief struct {
 	// systemEvents
 	workersSignals chan workerSignal
 
-	workersEventHub map[WorkerName]chan Message
-	eventHub        chan Message
+	workersEventHub map[WorkerName]chan<- *Message
+	eventHub        <-chan *Message
 
 	// EnableByDefault sets all the working `Enabled`
 	// if none of the workers is passed on to enable.
@@ -71,6 +71,7 @@ func (chief *Chief) Init(logger *logrus.Entry) *Chief {
 	chief.initialized = true
 
 	chief.workersSignals = make(chan workerSignal, 4)
+	chief.workersEventHub = make(map[WorkerName]chan<- *Message)
 
 	return chief
 }
@@ -212,6 +213,9 @@ func (chief *Chief) StartPool(parentCtx context.Context) int {
 
 	var runCount int
 	ctx, cancel := context.WithCancel(chief.ctx)
+	workersEventBus := make(chan *Message, len(chief.wPool.workers)*10)
+
+	chief.eventHub = workersEventBus
 
 	for name := range chief.wPool.workers {
 		if chief.wPool.IsDisabled(name) {
@@ -228,7 +232,11 @@ func (chief *Chief) StartPool(parentCtx context.Context) int {
 
 		runCount++
 		wg.Add(1)
-		wCtx := NewContext(name, ctx)
+
+		workersDirectBus := make(chan *Message, len(chief.wPool.workers)*10)
+		chief.workersEventHub[name] = workersDirectBus
+		wCtx := NewContext(name, ctx, workersDirectBus, workersEventBus)
+
 		go chief.runWorker(name, wCtx, wg.Done)
 	}
 
@@ -237,16 +245,16 @@ func (chief *Chief) StartPool(parentCtx context.Context) int {
 		return workerPoolStartFailed
 	}
 
-	<-parentCtx.Done()
+	go chief.runEventMux(chief.ctx)
 
+	<-parentCtx.Done()
 	chief.logger.Info("Begin graceful shutdown of workers")
 
 	chief.active = false
 	cancel()
-
 	wg.Wait()
-	chief.logger.Info("Workers pool stopped")
 
+	chief.logger.Info("Workers pool stopped")
 	return workerPoolStoppedProperly
 }
 
@@ -269,7 +277,6 @@ func (chief *Chief) runWorker(name WorkerName, wCtx WContext, doneCall func()) {
 	logger.Info("Starting worker")
 
 startWorker:
-
 	err := chief.wPool.RunWorkerExec(name, wCtx)
 	if err != nil {
 		logger.WithError(err).
@@ -288,4 +295,29 @@ startWorker:
 			Error("Worker state change failed")
 	}
 	chief.workersSignals <- workerSignal{name: name, sig: signalStop}
+}
+
+func (chief *Chief) runEventMux(ctx context.Context) {
+	for {
+		select {
+		case m := <-chief.eventHub:
+			if m == nil {
+				continue
+			}
+
+			switch m.Target {
+			case "*", "broadcast":
+				for to := range chief.workersEventHub {
+					chief.workersEventHub[to] <- m
+				}
+			default:
+				if _, ok := chief.workersEventHub[m.Target]; ok {
+					chief.workersEventHub[m.Target] <- m
+				}
+			}
+
+		case <-ctx.Done():
+			return
+		}
+	}
 }

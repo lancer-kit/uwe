@@ -22,18 +22,21 @@ type WContext interface {
 
 type wContext struct {
 	context.Context
+
 	name WorkerName
-	out  chan *Message
-	in   chan *Message
+
+	// in is channel for incoming messages for a worker
+	in chan *Message
+	// out is channel for outgoing messages from a worker
+	out chan<- *Message
 }
 
-func NewContext(name WorkerName, ctx context.Context) WContext {
+func NewContext(name WorkerName, ctx context.Context, in, out chan *Message) WContext {
 	return &wContext{
 		Context: ctx,
 		name:    name,
-		//fixme
-		in:  make(chan *Message),
-		out: make(chan *Message),
+		in:      in,
+		out:     out,
 	}
 
 }

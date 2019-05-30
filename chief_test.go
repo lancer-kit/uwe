@@ -32,7 +32,7 @@ func (s *dummyWorker) RestartOnFail() bool {
 }
 
 // Run start job execution.
-func (s *dummyWorker) Run() {
+func (s *dummyWorker) Run() ExitCode {
 	ticker := time.NewTicker(15 * time.Second)
 	for {
 		select {
@@ -41,12 +41,12 @@ func (s *dummyWorker) Run() {
 		case <-s.ctx.Done():
 			ticker.Stop()
 			fmt.Println("End job")
-			return
+			return ExitCodeOk
 		}
 	}
 }
 func TestChief_InitWorkers(t *testing.T) {
-	require := require.New(t)
+	assertions := require.New(t)
 
 	wp := WorkerPool{}
 	worker := new(dummyWorker)
@@ -68,9 +68,9 @@ func TestChief_InitWorkers(t *testing.T) {
 		logrus.Info(fmt.Sprintf("Started %s", tt.name))
 
 		//tt.chief.InitWorkers(nil)
-		require.NotNilf(tt.chief.logger, "Chief.logger is not initialized")
-		require.NotNilf(tt.chief.ctx, "Chief.ctx is not initialized")
-		require.Truef(tt.chief.initialized, "Workers is not initialized")
+		assertions.NotNilf(tt.chief.logger, "Chief.logger is not initialized")
+		assertions.NotNilf(tt.chief.ctx, "Chief.ctx is not initialized")
+		assertions.Truef(tt.chief.initialized, "Workers is not initialized")
 
 		logrus.Info(fmt.Sprintf("%s finished successfully", tt.name))
 	}
@@ -151,10 +151,10 @@ func TestChief_RunAll(t *testing.T) {
 
 		go func() {
 			time.Sleep(20 * time.Second)
-			syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+			_ = syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 		}()
 
-		err := tt.chief.RunAll("Test chief", "dummyWorker")
+		err := tt.chief.Run("Test chief", "dummyWorker")
 		require.NoError(err)
 		require.Falsef(tt.chief.active, "Chief is still active after shuttdowning of workers")
 		logrus.Info(fmt.Sprintf("%s finished successfully", tt.name))
@@ -183,25 +183,26 @@ func (s *restartWorker) RestartOnFail() bool {
 }
 
 // Run start job execution.
-func (s *restartWorker) Run() {
+func (s *restartWorker) Run() ExitCode {
 	ticker := time.NewTicker(10 * time.Second)
 
 	for {
 		select {
 		case <-ticker.C:
 			//create panic for tests
-			panic("planned panic when executing worker")
 			fmt.Println("I'm alive")
+			panic("planned panic when executing worker")
 		case <-s.ctx.Done():
 			ticker.Stop()
 			fmt.Println("End job")
-			return
+			return ExitCodeOk
+
 		}
 	}
 }
 
 func TestRestartOnFailWorker(t *testing.T) {
-	require := require.New(t)
+	assertions := require.New(t)
 
 	wp := WorkerPool{}
 	worker := new(restartWorker)
@@ -244,13 +245,13 @@ func TestRestartOnFailWorker(t *testing.T) {
 
 		go tt.chief.StartPool(tt.parentCtx)
 
-		require.True(tt.chief.active, "Error chief is not active")
+		assertions.True(tt.chief.active, "Error chief is not active")
 
 		time.Sleep(30 * time.Second)
 		tt.canselFunc()
 		time.Sleep(5 * time.Second)
 
-		require.Falsef(tt.chief.active, "Chief is still active after shuttdowning of workers")
+		assertions.Falsef(tt.chief.active, "Chief is still active after shuttdowning of workers")
 		logrus.Info(fmt.Sprintf("%s finished successfully", tt.name))
 	}
 }

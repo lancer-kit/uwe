@@ -29,8 +29,8 @@ func (m mockWorker) Init(context.Context) Worker {
 func (m mockWorker) RestartOnFail() bool {
 	return false
 }
-func (m mockWorker) Run() {
-
+func (m mockWorker) Run() ExitCode {
+	return ExitCodeOk
 }
 
 // initPool returns WorkerPool instance suitable for most tests
@@ -225,7 +225,7 @@ func TestWorkerPool_IsAlive(t *testing.T) {
 	for _, tt := range tests {
 		logrus.Info(fmt.Sprintf("Started %s", tt.name))
 
-		res := tt.pool.IsAlive(tt.workerName)
+		res := tt.pool.IsRun(tt.workerName)
 		require.Equalf(t, tt.want, res, fmt.Sprintf("Error in: %s", tt.name))
 
 		logrus.Info(fmt.Sprintf("%s finished successfully", tt.name))
@@ -291,11 +291,6 @@ func TestWorkerPool_SetState(t *testing.T) {
 func TestWorkerPool_SetWorker(t *testing.T) {
 
 	testPool := new(WorkerPool)
-
-	type args struct {
-		name   string
-		worker Worker
-	}
 
 	tests := []test{
 		{

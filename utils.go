@@ -27,31 +27,3 @@ func (r *WorkerExistRule) Error(message string) *WorkerExistRule {
 		message: message,
 	}
 }
-
-type ContextLocker struct {
-	lock func()
-	done chan struct{}
-}
-
-func NewContextLocker(lock func()) ContextLocker {
-	return ContextLocker{
-		lock: lock,
-		done: make(chan struct{}),
-	}
-}
-
-func (c *ContextLocker) Lock() {
-	go c.lock()
-
-	<-c.done
-}
-
-func (c *ContextLocker) CancelFunc() func() {
-	return func() {
-		c.done <- struct{}{}
-	}
-}
-
-func (c *ContextLocker) Close() {
-	close(c.done)
-}

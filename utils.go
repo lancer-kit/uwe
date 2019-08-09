@@ -4,7 +4,7 @@ import "errors"
 
 type WorkerExistRule struct {
 	message          string
-	AvailableWorkers map[string]struct{}
+	AvailableWorkers map[WorkerName]struct{}
 }
 
 // Validate checks that service exist on the system

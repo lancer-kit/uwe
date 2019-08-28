@@ -63,7 +63,7 @@ func (w *MyWorker) Init(parentCtx context.Context) routines.Worker {
 
 ## Usage 
 
-Just define the `routines.Chief` variable, register your worker using the `AddWorker` method. 
+Just define the `uwe.Chief` variable, register your worker using the `AddWorker` method. 
 Before starting, you must initialize registered workers using the `InitWorkers(*logrus.Entry)` method.
 
 A very simple example:
@@ -72,27 +72,40 @@ A very simple example:
 package main
 
 import (
-    "github.com/lancer-kit/armory/routines"
     "context"
+    "log"
+
+    "github.com/lancer-kit/uwe"
 )
 
-var WorkersChief routines.Chief
+var (
+    workersChief uwe.Chief
+    name = uwe.WorkerName("my-awesome-worker")
+)
 
 func init()  {
-    WorkersChief = routines.Chief{}
-    WorkersChief.AddWorker("my-awesome-worker", &MyWorker{})
+    workersChief = uwe.Chief{}
+    workersChief.AddWorker(name, &MyWorker{})
     // `MyWorker` is a type which implement `Worker` interface.
 }
 
 func main () {
-    WorkersChief.InitWorkers(nil)
-    ctx, cancel := context.WithCancel(context.Background())
-    go func() {
-        WorkersChief.Start(ctx)
-    }()
-    
-    defer func() {
-        cancel()
-    }()
+    err := workersChief.EnableWorkers()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    if err = workersChief.Run(name); err != nil {
+        log.Fatal(err)
+    }
 }
 ```
+
+
+#### Worker Template for JETBrains IDEs:
+
+1. Open **Settings -> Editor -> Live Templates**
+2. Click  **+**/**Add** button
+3. Fill macro shortcut and description (ex: uweWorker; new uwe.Worker impl)
+4. Paste content of [idea-worker.tmpl](./idea-worker.tmpl)
+5. Save

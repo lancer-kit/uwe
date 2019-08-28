@@ -1,0 +1,54 @@
+type $TYPE_1$ struct {
+	logger *logrus.Entry
+
+	Name string
+}
+
+func ($RECEIVER$ *$TYPE_1$) Init(ctx context.Context) uwe.Worker {
+	logger, ok := ctx.Value(uwe.CtxKeyLog).(*logrus.Entry)
+	if !ok {
+		logger = logrus.NewEntry(logrus.New())
+	}
+
+	return &$TYPE_1${
+		Name:   $RECEIVER$.Name,
+		logger: logger.WithField("worker", $RECEIVER$.Name),
+	}
+}
+
+func (*$TYPE_1$) RestartOnFail() bool {
+	return $TYPE_3$
+}
+
+func ($RECEIVER$ *$TYPE_1$) Run(wCtx uwe.WContext) uwe.ExitCode {
+	ticker := time.NewTicker(time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			$RECEIVER$.logger.Info("Perform my task")
+
+			canContinue := $RECEIVER$.performTask()
+			if !canContinue {
+				// TODO: complete this flow
+			}
+
+		case m := <-wCtx.MessageBus():
+			$RECEIVER$.logger.
+				WithField("Sender", m.Sender).
+				WithField("Target", m.Target).
+				WithField("data", fmt.Sprintf("%+v", m.Data)).
+				Debug("got new message")
+		case <-wCtx.Done():
+			ticker.Stop()
+			$RECEIVER$.logger.Info("Receive exit code, stop working")
+			return uwe.ExitCodeOk
+		}
+	}
+
+}
+
+func ($RECEIVER$ *$TYPE_1$) performTask() (canContinue bool) {
+	$END$
+	return canContinue
+}
+

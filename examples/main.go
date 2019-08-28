@@ -67,8 +67,16 @@ func main() {
 	chief := uwe.NewChief(
 		"chief",
 		true,
+
 		logrus.New().WithField("env", "example"),
 	)
+	chief.EnableAdminAPI = true
+	chief.AdminConfig = uwe.AdminConfig{
+		PPROF:        true,
+		AllowControl: true,
+		Host:         "0.0.0.0",
+		Port:         8080,
+	}
 
 	chief.AddWorker("dummy-1", &dummy{name: "dummy-1"})
 	chief.AddWorker("dummy-2", &dummy{name: "dummy-2"})

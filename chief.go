@@ -50,6 +50,10 @@ type Chief struct {
 	EnableByDefault bool
 	// AppName main app identifier of instance for logger and etc.
 	AppName string
+
+	// todo:
+	EnableAdminAPI bool
+	AdminConfig    AdminConfig
 }
 
 // NewChief creates and initialize new instance of `Chief`
@@ -216,6 +220,13 @@ func (chief *Chief) StartPool(parentCtx context.Context) int {
 	workersEventBus := make(chan *Message, len(chief.wPool.workers)*10)
 
 	chief.eventHub = workersEventBus
+
+	if chief.EnableAdminAPI {
+		runCount++
+		wg.Add(1)
+
+		go chief.adminAPI(ctx)
+	}
 
 	for name := range chief.wPool.workers {
 		if chief.wPool.IsDisabled(name) {

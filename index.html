@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>UWE</title>
+</head>
+<body>
+<table>
+  <tr>
+    <th>Worker</th>
+    <th>Status</th>
+    <th>Action</th>
+  </tr>
+    {{ range $key, $value := . }}
+      <tr>
+        <td>{{ $key }}</td>
+        <td>{{ $value }}</td>
+        <td> NA</td>
+      </tr>
+    {{ end }}
+</table>
+</body>
+</html>

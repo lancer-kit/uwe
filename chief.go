@@ -12,7 +12,6 @@ import (
 )
 
 type Chief interface {
-	Init()
 	Run()
 	Shutdown()
 
@@ -22,6 +21,8 @@ type Chief interface {
 	SetEventHandler(EventHandler)
 	SetContext(context.Context)
 	SetLocker(Locker)
+	SetRecover(Recover)
+	SetShutdown(Shutdown)
 
 	Event() <-chan Event
 }
@@ -53,10 +54,7 @@ type chief struct {
 }
 
 func NewChief() Chief {
-	return new(chief)
-}
-
-func (c *chief) Init() {
+	c := new(chief)
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	c.eventChan = make(chan Event)
 	c.forceStopTimeout = DefaultForceStopTimeout
@@ -64,15 +62,20 @@ func (c *chief) Init() {
 		mutex:   new(sync.RWMutex),
 		workers: make(map[WorkerName]*workerRO),
 	}
+	return c
 }
 
 func (c *chief) AddWorker(name WorkerName, worker Worker) {
-	c.wPool.SetWorker(name, worker)
+	if err := c.wPool.SetWorker(name, worker); err != nil {
+		c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
+	}
 }
 
 func (c *chief) AddWorkers(workers map[WorkerName]Worker) {
 	for name, worker := range workers {
-		c.wPool.SetWorker(name, worker)
+		if err := c.wPool.SetWorker(name, worker); err != nil {
+			c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
+		}
 	}
 }
 
@@ -88,11 +91,11 @@ func (c *chief) SetLocker(locker Locker) {
 	c.locker = locker
 }
 
-func (c *chief) SetRecover(recover func()) {
+func (c *chief) SetRecover(recover Recover) {
 	c.recover = recover
 }
 
-func (c *chief) SetShutdown(shutdown func()) {
+func (c *chief) SetShutdown(shutdown Shutdown) {
 	c.shutdown = shutdown
 }
 
@@ -110,12 +113,15 @@ func (c *chief) Event() <-chan Event {
 }
 
 func (c *chief) Run() {
-	defer c.Shutdown()
 	if c.locker == nil {
 		c.locker = waitForSignal
 	}
 	if c.eventHandler != nil {
-		go c.handleEvents()
+		stop := make(chan struct{})
+		defer func() {
+			stop <- struct{}{}
+		}()
+		go c.handleEvents(stop)
 	}
 
 	c.run()
@@ -123,7 +129,9 @@ func (c *chief) Run() {
 
 func (c *chief) Shutdown() {
 	c.cancel()
-	c.shutdown()
+	if c.shutdown != nil {
+		c.shutdown()
+	}
 }
 
 func (c *chief) run() {
@@ -155,12 +163,17 @@ func (c *chief) run() {
 	}
 }
 
-func (c *chief) handleEvents() {
+func (c *chief) handleEvents(stop <-chan struct{}) {
 	c.eventMutex.Lock()
 	defer c.eventMutex.Unlock()
 
-	for event := range c.eventChan {
-		c.eventHandler(event)
+	for {
+		select {
+		case event := <-c.eventChan:
+			c.eventHandler(event)
+		case <-stop:
+			return
+		}
 	}
 }
 
@@ -172,7 +185,7 @@ func (c *chief) runPool() error {
 
 	for name := range c.wPool.workers {
 		if err := c.wPool.InitWorker(ctx, name); err != nil {
-			c.eventChan <- ErrorEvent("failed to init worker").SetWorker(name)
+			c.eventChan <- ErrorEvent(errors.Wrap(err, "failed to init worker").Error()).SetWorker(name)
 			continue
 		}
 

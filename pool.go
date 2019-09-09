@@ -42,16 +42,23 @@ func (p *WorkerPool) InitWorker(ctx context.Context, name WorkerName) error {
 }
 
 // SetWorker adds worker into pool.
-func (p *WorkerPool) SetWorker(name WorkerName, worker Worker) {
+func (p *WorkerPool) SetWorker(name WorkerName, worker Worker) error {
 	p.check()
-
 	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	sm, err := newWorkerSM()
+	if err != nil {
+		return err
+	}
+
 	p.workers[name] = &workerRO{
-		StateMachine: newWorkerSM(),
+		StateMachine: sm,
 		worker:       worker,
 		canceler:     nil,
 	}
-	p.mutex.Unlock()
+
+	return nil
 }
 
 func (p *WorkerPool) ReplaceWorker(name WorkerName, worker Worker) {

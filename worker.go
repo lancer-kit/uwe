@@ -3,8 +3,9 @@ package uwe
 import (
 	"context"
 
+	"github.com/pkg/errors"
+
 	"github.com/lancer-kit/sam"
-	"github.com/sirupsen/logrus"
 )
 
 type WorkerName string
@@ -40,7 +41,7 @@ const (
 //          |             |           |
 //          |             |           ↓
 //          |_____________|------> [Failed]
-func newWorkerSM() sam.StateMachine {
+func newWorkerSM() (sam.StateMachine, error) {
 	sm := sam.NewStateMachine()
 	s := &sm
 	workerSM, err := s.
@@ -49,8 +50,11 @@ func newWorkerSM() sam.StateMachine {
 		AddTransitions(WStateRun, WStateStopped, WStateFailed).
 		Finalize(WStateStopped)
 	if err != nil || workerSM == nil {
-		logrus.Fatal("worker state machine init failed: ", err)
+		return sm, errors.Wrap(err, "worker state machine init failed: ")
+	}
+	if err = workerSM.SetState(WStateNew); err != nil {
+		return sm, errors.Wrap(err, "failed to set state new")
 	}
 
-	return workerSM.Clone()
+	return workerSM.Clone(), nil
 }

@@ -1,7 +1,6 @@
 package uwe
 
 import (
-	"context"
 	"fmt"
 	"sync"
 
@@ -32,13 +31,13 @@ func (p *WorkerPool) getWorker(name WorkerName) *workerRO {
 }
 
 // InitWorker initializes all present workers.
-func (p *WorkerPool) InitWorker(ctx context.Context, name WorkerName) error {
+func (p *WorkerPool) InitWorker(name WorkerName) error {
 	if err := p.SetState(name, WStateInitialized); err != nil {
 		return err
 	}
 
 	w := p.getWorker(name)
-	return w.worker.Init(ctx)
+	return w.worker.Init()
 }
 
 // SetWorker adds worker into pool.
@@ -70,13 +69,13 @@ func (p *WorkerPool) ReplaceWorker(name WorkerName, worker Worker) {
 }
 
 // RunWorkerExec adds worker into pool.
-func (p *WorkerPool) RunWorkerExec(name WorkerName) (err error) {
+func (p *WorkerPool) RunWorkerExec(ctx Context, name WorkerName) (err error) {
 	if err = p.StartWorker(name); err != nil {
 		return err
 	}
 
 	w := p.getWorker(name)
-	if err = w.worker.Run(); err != nil {
+	if err = w.worker.Run(ctx); err != nil {
 		return err
 	}
 

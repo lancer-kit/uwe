@@ -184,7 +184,7 @@ func (c *chief) runPool() error {
 	ctx, cancel := context.WithCancel(c.ctx)
 
 	for name := range c.wPool.workers {
-		if err := c.wPool.InitWorker(ctx, name); err != nil {
+		if err := c.wPool.InitWorker(name); err != nil {
 			c.eventChan <- ErrorEvent(errors.Wrap(err, "failed to init worker").Error()).SetWorker(name)
 			continue
 		}
@@ -192,7 +192,7 @@ func (c *chief) runPool() error {
 		runCount++
 		wg.Add(1)
 
-		go c.runWorker(name, wg.Done)
+		go c.runWorker(ctx, name, wg.Done)
 	}
 
 	if runCount == 0 {
@@ -208,13 +208,13 @@ func (c *chief) runPool() error {
 	return nil
 }
 
-func (c *chief) runWorker(name WorkerName, doneCall func()) {
+func (c *chief) runWorker(ctx Context, name WorkerName, doneCall func()) {
 	defer doneCall()
 	if c.recover != nil {
 		defer c.recover()
 	}
 
-	err := c.wPool.RunWorkerExec(name)
+	err := c.wPool.RunWorkerExec(ctx, name)
 	if err != nil {
 		c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
 	}

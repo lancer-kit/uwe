@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 
@@ -12,11 +11,11 @@ import (
 type panicDummy struct {
 }
 
-func (d panicDummy) Init(ctx context.Context) error {
+func (d panicDummy) Init() error {
 	return nil
 }
 
-func (d panicDummy) Run() error {
+func (d panicDummy) Run(ctx uwe.Context) error {
 	panic(errors.New("implement me"))
 }
 
@@ -27,9 +26,9 @@ func main() {
 		r := recover()
 		switch r.(type) {
 		case error:
-			fmt.Printf("oh, no! there is an error: %v", r)
+			fmt.Printf("oh, no! there is an error: %v\n", r)
 		case string:
-			fmt.Printf("oh, no! there is no error, just string: %v", r)
+			fmt.Printf("oh, no! there is no error, just string: %v\n", r)
 		}
 	})
 	chief.SetEventHandler(func(event uwe.Event) {
@@ -41,6 +40,7 @@ func main() {
 	})
 
 	chief.AddWorker("panicDummy-1", &panicDummy{})
+	chief.AddWorker("panicDummy-2", &panicDummy{})
 
 	chief.Run()
 }

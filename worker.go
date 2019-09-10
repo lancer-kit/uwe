@@ -14,9 +14,9 @@ type WorkerName string
 // which launches and manages by the `Chief`.
 type Worker interface {
 	// Init initializes new instance of the `Worker` implementation
-	Init(ctx context.Context) error
+	Init() error
 	// Run starts the `Worker` instance execution.
-	Run() error
+	Run(Context) error
 }
 
 // workerRO worker runtime object, hold worker instance, state and communication chanel

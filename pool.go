@@ -1,12 +1,10 @@
 package uwe
 
 import (
-	"context"
 	"fmt"
 	"sync"
 
-	"github.com/sheb-gregor/sam"
-
+	"github.com/lancer-kit/sam"
 	"github.com/pkg/errors"
 )
 
@@ -18,189 +16,138 @@ var (
 
 // WorkerPool is
 type WorkerPool struct {
-	rw      sync.RWMutex
+	mutex   *sync.RWMutex
 	workers map[WorkerName]*workerRO
 }
 
-//getWorker - get WorkerRO by name
-func (pool *WorkerPool) getWorker(name WorkerName) *workerRO {
-	pool.rw.RLock()
-	defer pool.rw.RUnlock()
-	if wk, ok := pool.workers[name]; ok {
+// getWorker - get WorkerRO by name
+func (p *WorkerPool) getWorker(name WorkerName) *workerRO {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
+	if wk, ok := p.workers[name]; ok {
 		return wk
 	}
 	return nil
 }
 
 // InitWorker initializes all present workers.
-func (pool *WorkerPool) InitWorker(name WorkerName, ctx context.Context) error {
-	if err := pool.SetState(name, WStateInitialized); err != nil {
+func (p *WorkerPool) InitWorker(name WorkerName) error {
+	if err := p.SetState(name, WStateInitialized); err != nil {
 		return err
 	}
 
-	w := pool.getWorker(name)
-	initObj := w.worker.Init(ctx)
-	pool.ReplaceWorker(name, initObj)
-	return nil
+	w := p.getWorker(name)
+	return w.worker.Init()
 }
 
 // SetWorker adds worker into pool.
-func (pool *WorkerPool) SetWorker(name WorkerName, worker Worker) {
-	pool.check()
+func (p *WorkerPool) SetWorker(name WorkerName, worker Worker) error {
+	p.check()
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
-	pool.rw.Lock()
-	pool.workers[name] = &workerRO{
-		StateMachine: newWorkerSM(),
-		worker:       worker,
-		canceler:     nil,
-		eventBus:     nil,
-		exitCode:     nil,
-	}
-	pool.rw.Unlock()
-}
-
-func (pool *WorkerPool) ReplaceWorker(name WorkerName, worker Worker) {
-	pool.check()
-
-	pool.rw.Lock()
-	pool.workers[name].worker = worker
-	pool.rw.Unlock()
-}
-
-// RunWorkerExec adds worker into pool.
-func (pool *WorkerPool) RunWorkerExec(name WorkerName, ctx WContext) (err error) {
-	defer func() {
-		rec := recover()
-		if rec == nil {
-			return
-		}
-
-		e, ok := rec.(error)
-		if !ok {
-			e = fmt.Errorf("%v", rec)
-		}
-		err = errors.WithStack(e)
-
-		if er := pool.FailWorker(name); er != nil {
-			err = errors.Wrap(err, er.Error())
-		}
-	}()
-
-	if err = pool.StartWorker(name); err != nil {
+	sm, err := newWorkerSM()
+	if err != nil {
 		return err
 	}
 
-	//todo:
-	w := pool.getWorker(name)
-	extCode := w.worker.Run(ctx)
-	switch extCode {
-	case ExitCodeOk:
-		return pool.StopWorker(name)
-	case ExitCodeFailed:
-		return pool.FailWorker(name)
-	case ExitCodeInterrupted:
-		return pool.FailWorker(name)
-	case ExitReinitReq:
-		//todo
+	p.workers[name] = &workerRO{
+		StateMachine: sm,
+		worker:       worker,
+		canceler:     nil,
 	}
 
-	return
+	return nil
+}
+
+func (p *WorkerPool) ReplaceWorker(name WorkerName, worker Worker) {
+	p.check()
+
+	p.mutex.Lock()
+	p.workers[name].worker = worker
+	p.mutex.Unlock()
+}
+
+// RunWorkerExec adds worker into pool.
+func (p *WorkerPool) RunWorkerExec(ctx Context, name WorkerName) (err error) {
+	if err = p.StartWorker(name); err != nil {
+		return err
+	}
+
+	w := p.getWorker(name)
+	if err = w.worker.Run(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // ============ Methods relating to the workers states ============
 
 // GetWorkersStates returns current state of all workers.
-func (pool *WorkerPool) GetWorkersStates() map[WorkerName]sam.State {
-	pool.rw.RLock()
-	defer pool.rw.RUnlock()
+func (p *WorkerPool) GetWorkersStates() map[WorkerName]sam.State {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
 	r := map[WorkerName]sam.State{}
-	for name, worker := range pool.workers {
+	for name, worker := range p.workers {
 		r[name] = worker.State()
 	}
 	return r
 }
 
 // GetState returns current state for workers with the specified `name`.
-func (pool *WorkerPool) GetState(name WorkerName) sam.State {
-	pool.rw.RLock()
-	defer pool.rw.RUnlock()
-	if wk, ok := pool.workers[name]; ok {
+func (p *WorkerPool) GetState(name WorkerName) sam.State {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
+	if wk, ok := p.workers[name]; ok {
 		return wk.State()
 	}
 
-	return WStateDisabled
-}
-
-// IsEnabled checks is enabled worker with passed `name`.
-func (pool *WorkerPool) IsEnabled(name WorkerName) bool {
-	if pool.workers == nil {
-		return false
-	}
-
-	return pool.GetState(name) != WStateDisabled
-}
-
-// IsEnabled checks is disabled worker with passed `name`.
-func (pool *WorkerPool) IsDisabled(name WorkerName) bool {
-	if pool.workers == nil {
-		return false
-	}
-
-	return pool.GetState(name) == WStateDisabled
+	return WStateNotExists
 }
 
 // IsRun checks is active worker with passed `name`.
-func (pool *WorkerPool) IsRun(name WorkerName) bool {
-	state := pool.GetState(name)
+func (p *WorkerPool) IsRun(name WorkerName) bool {
+	state := p.GetState(name)
 	return state == WStateRun
 }
 
-// DisableWorker sets state `WorkerDisabled` for workers with the specified `name`.
-func (pool *WorkerPool) DisableWorker(name WorkerName) error {
-	return pool.SetState(name, WStateDisabled)
-}
-
-// EnableWorker sets state `WorkerEnabled` for workers with the specified `name`.
-func (pool *WorkerPool) EnableWorker(name WorkerName) error {
-	return pool.SetState(name, WStateEnabled)
-}
-
 // StartWorker sets state `WorkerEnabled` for workers with the specified `name`.
-func (pool *WorkerPool) StartWorker(name WorkerName) error {
-	return pool.SetState(name, WStateRun)
+func (p *WorkerPool) StartWorker(name WorkerName) error {
+	return p.SetState(name, WStateRun)
 }
 
 // StopWorker sets state `WorkerStopped` for workers with the specified `name`.
-func (pool *WorkerPool) StopWorker(name WorkerName) error {
-	return pool.SetState(name, WStateStopped)
+func (p *WorkerPool) StopWorker(name WorkerName) error {
+	return p.SetState(name, WStateStopped)
 }
 
 // FailWorker sets state `WorkerFailed` for workers with the specified `name`.
-func (pool *WorkerPool) FailWorker(name WorkerName) error {
-	return pool.SetState(name, WStateFailed)
+func (p *WorkerPool) FailWorker(name WorkerName) error {
+	return p.SetState(name, WStateFailed)
 }
 
 // SetState updates state of specified worker.
-func (pool *WorkerPool) SetState(name WorkerName, state sam.State) error {
-	pool.check()
+func (p *WorkerPool) SetState(name WorkerName, state sam.State) error {
+	p.check()
 
-	pool.rw.Lock()
-	_, ok := pool.workers[name]
+	p.mutex.Lock()
+	_, ok := p.workers[name]
 	if !ok {
 		return ErrWorkerNotExist(name)
 	}
 
-	err := pool.workers[name].GoTo(state)
-	pool.rw.Unlock()
+	err := p.workers[name].GoTo(state)
+	p.mutex.Unlock()
 	return errors.Wrap(err, string(name))
 }
 
-func (pool *WorkerPool) check() {
-	pool.rw.Lock()
+func (p *WorkerPool) check() {
+	p.mutex.Lock()
 
-	if pool.workers == nil {
-		pool.workers = make(map[WorkerName]*workerRO)
+	if p.workers == nil {
+		p.workers = make(map[WorkerName]*workerRO)
 	}
 
-	pool.rw.Unlock()
+	p.mutex.Unlock()
 }

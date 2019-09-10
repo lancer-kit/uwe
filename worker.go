@@ -16,6 +16,7 @@ type Worker interface {
 	// Init initializes new instance of the `Worker` implementation
 	Init() error
 	// Run starts the `Worker` instance execution.
+	// Context should be used for listening to ctx.Done()
 	Run(Context) error
 }
 

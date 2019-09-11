@@ -24,7 +24,7 @@ type Chief interface {
 	SetContext(context.Context)
 	SetLocker(Locker)
 	SetRecover(Recover)
-	SetDefaultRecover()
+	UseDefaultRecover()
 	SetShutdown(Shutdown)
 
 	Event() <-chan Event
@@ -98,7 +98,7 @@ func (c *chief) SetRecover(recover Recover) {
 	c.recover = recover
 }
 
-func (c *chief) SetDefaultRecover() {
+func (c *chief) UseDefaultRecover() {
 	c.recover = func() {
 		r := recover()
 

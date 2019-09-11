@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/lancer-kit/uwe"
@@ -22,25 +21,16 @@ func (d panicDummy) Run(ctx uwe.Context) error {
 func main() {
 	chief := uwe.NewChief()
 
-	chief.SetRecover(func() {
-		r := recover()
-		switch r.(type) {
-		case error:
-			fmt.Printf("oh, no! there is an error: %v\n", r)
-		case string:
-			fmt.Printf("oh, no! there is no error, just string: %v\n", r)
-		}
-	})
+	chief.SetDefaultRecover()
 	chief.SetEventHandler(func(event uwe.Event) {
-		msg, err := json.Marshal(event)
-		if err != nil {
-			fmt.Println("err: " + err.Error())
+		if event.IsFatal() || event.IsError() {
+			fmt.Println(event.ToError())
+			return
 		}
-		fmt.Println(string(msg))
+		fmt.Printf("level: %s\nmsg: %s", event.Level, event.Message)
 	})
 
 	chief.AddWorker("panicDummy-1", &panicDummy{})
-	chief.AddWorker("panicDummy-2", &panicDummy{})
 
 	chief.Run()
 }

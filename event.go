@@ -5,6 +5,7 @@ import "github.com/pkg/errors"
 type EventLevel string
 
 const (
+	LvlFatal EventLevel = "fatal"
 	LvlError EventLevel = "error"
 	LvlInfo  EventLevel = "info"
 )
@@ -16,12 +17,16 @@ type Event struct {
 	Message string
 }
 
+func (e Event) IsFatal() bool {
+	return e.Level == LvlFatal
+}
+
 func (e Event) IsError() bool {
 	return e.Level == LvlError
 }
 
 func (e Event) ToError() error {
-	if !e.IsError() {
+	if !e.IsError() && !e.IsFatal() {
 		return nil
 	}
 	return errors.New(e.Message)

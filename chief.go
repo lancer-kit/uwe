@@ -2,8 +2,10 @@ package uwe
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"sync"
 	"syscall"
 	"time"
@@ -22,6 +24,7 @@ type Chief interface {
 	SetContext(context.Context)
 	SetLocker(Locker)
 	SetRecover(Recover)
+	SetDefaultRecover()
 	SetShutdown(Shutdown)
 
 	Event() <-chan Event
@@ -93,6 +96,23 @@ func (c *chief) SetLocker(locker Locker) {
 
 func (c *chief) SetRecover(recover Recover) {
 	c.recover = recover
+}
+
+func (c *chief) SetDefaultRecover() {
+	c.recover = func() {
+		r := recover()
+
+		err, ok := r.(error)
+		if !ok {
+			err = fmt.Errorf("%v", r)
+		}
+
+		err = fmt.Errorf("panic: %s\ntrace: %s", err, debug.Stack())
+		c.eventChan <- Event{
+			Level:   LvlFatal,
+			Message: err.Error(),
+		}
+	}
 }
 
 func (c *chief) SetShutdown(shutdown Shutdown) {

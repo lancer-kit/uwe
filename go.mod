@@ -1,4 +1,4 @@
-module github.com/lancer-kit/uwe
+module github.com/lancer-kit/uwe/v2
 
 go 1.12
 

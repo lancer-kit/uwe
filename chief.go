@@ -101,6 +101,9 @@ func (c *chief) SetRecover(recover Recover) {
 func (c *chief) UseDefaultRecover() {
 	c.recover = func() {
 		r := recover()
+		if r == nil {
+			return
+		}
 
 		err, ok := r.(error)
 		if !ok {

@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/lancer-kit/uwe"
+	"github.com/lancer-kit/uwe/v2"
 	"github.com/pkg/errors"
 )
 

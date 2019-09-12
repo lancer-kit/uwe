@@ -3,7 +3,7 @@ package cron
 import (
 	"time"
 
-	"github.com/lancer-kit/uwe"
+	"github.com/lancer-kit/uwe/v2"
 )
 
 type Job struct {

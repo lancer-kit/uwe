@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lancer-kit/uwe"
-	"github.com/lancer-kit/uwe/presets/cron"
+	"github.com/lancer-kit/uwe/v2"
+	"github.com/lancer-kit/uwe/v2/presets/cron"
 )
 
 func main() {

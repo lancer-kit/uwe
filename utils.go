@@ -1,6 +1,9 @@
 package uwe
 
-import "errors"
+import (
+	"errors"
+	"reflect"
+)
 
 type WorkerExistRule struct {
 	message          string
@@ -9,6 +12,9 @@ type WorkerExistRule struct {
 
 // Validate checks that service exist on the system
 func (r *WorkerExistRule) Validate(value interface{}) error {
+	if value == nil || reflect.ValueOf(value).IsNil() {
+		return nil
+	}
 	arr, ok := value.([]string)
 	if !ok {
 		return errors.New("can't convert list of workers to []string")

@@ -32,7 +32,7 @@ type Chief interface {
 
 type (
 	Locker       func()
-	Recover      func()
+	Recover      func(name WorkerName)
 	Shutdown     func()
 	EventHandler func(Event)
 )
@@ -99,7 +99,7 @@ func (c *chief) SetRecover(recover Recover) {
 }
 
 func (c *chief) UseDefaultRecover() {
-	c.recover = func() {
+	c.recover = func(name WorkerName) {
 		r := recover()
 		if r == nil {
 			return
@@ -113,7 +113,13 @@ func (c *chief) UseDefaultRecover() {
 		err = fmt.Errorf("panic: %s\ntrace: %s", err, debug.Stack())
 		c.eventChan <- Event{
 			Level:   LvlFatal,
-			Message: err.Error(),
+			Worker:  name,
+			Message: "caught panic",
+			Fields: map[string]interface{}{
+				"worker": name,
+				"error":  err.Error(),
+				"stack":  string(debug.Stack()),
+			},
 		}
 	}
 }
@@ -152,6 +158,8 @@ func (c *chief) Run() {
 
 func (c *chief) Shutdown() {
 	c.cancel()
+
+	c.eventMutex.Unlock()
 	if c.shutdown != nil {
 		c.shutdown()
 	}
@@ -188,7 +196,6 @@ func (c *chief) run() {
 
 func (c *chief) handleEvents(stop <-chan struct{}) {
 	c.eventMutex.Lock()
-	defer c.eventMutex.Unlock()
 
 	for {
 		select {
@@ -234,7 +241,7 @@ func (c *chief) runPool() error {
 func (c *chief) runWorker(ctx Context, name WorkerName, doneCall func()) {
 	defer doneCall()
 	if c.recover != nil {
-		defer c.recover()
+		defer c.recover(name)
 	}
 
 	err := c.wPool.RunWorkerExec(ctx, name)

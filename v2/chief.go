@@ -110,7 +110,6 @@ func (c *chief) UseDefaultRecover() {
 			err = fmt.Errorf("%v", r)
 		}
 
-		err = fmt.Errorf("panic: %s\ntrace: %s", err, debug.Stack())
 		c.eventChan <- Event{
 			Level:   LvlFatal,
 			Worker:  name,

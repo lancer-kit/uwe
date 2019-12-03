@@ -23,8 +23,8 @@ type Config struct {
 }
 
 // Validate - Validate config required fields
-func (c *Config) Validate() error {
-	return validation.ValidateStruct(c,
+func (c Config) Validate() error {
+	return validation.ValidateStruct(&c,
 		validation.Field(&c.Host, validation.Required),
 		validation.Field(&c.Port, validation.Required),
 	)

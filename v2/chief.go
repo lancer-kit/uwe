@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/lancer-kit/sam"
 	"github.com/pkg/errors"
 )
 
@@ -19,6 +20,7 @@ type Chief interface {
 
 	AddWorker(WorkerName, Worker)
 	AddWorkers(map[WorkerName]Worker)
+	GetWorkersStates() map[WorkerName]sam.State
 
 	SetEventHandler(EventHandler)
 	SetContext(context.Context)
@@ -68,6 +70,10 @@ func NewChief() Chief {
 	return c
 }
 
+func (c *chief) RunInfoHandler() {
+
+}
+
 func (c *chief) AddWorker(name WorkerName, worker Worker) {
 	if err := c.wPool.SetWorker(name, worker); err != nil {
 		c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
@@ -80,6 +86,10 @@ func (c *chief) AddWorkers(workers map[WorkerName]Worker) {
 			c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
 		}
 	}
+}
+
+func (c *chief) GetWorkersStates() map[WorkerName]sam.State {
+	return c.wPool.GetWorkersStates()
 }
 
 func (c *chief) SetEventHandler(handler EventHandler) {

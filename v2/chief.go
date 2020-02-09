@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/lancer-kit/sam"
+	"github.com/lancer-kit/uwe/v2/socket"
 	"github.com/pkg/errors"
 )
 
@@ -19,6 +21,7 @@ type Chief interface {
 
 	AddWorker(WorkerName, Worker)
 	AddWorkers(map[WorkerName]Worker)
+	GetWorkersStates() map[WorkerName]sam.State
 
 	SetEventHandler(EventHandler)
 	SetContext(context.Context)
@@ -28,6 +31,8 @@ type Chief interface {
 	SetShutdown(Shutdown)
 
 	Event() <-chan Event
+
+	EnableServiceSocket(app AppInfo, actions ...socket.Action)
 }
 
 type (
@@ -54,18 +59,41 @@ type chief struct {
 	eventMutex   sync.Mutex
 	eventChan    chan Event
 	eventHandler EventHandler
+
+	sw *socket.Server
 }
 
 func NewChief() Chief {
-	c := new(chief)
-	c.ctx, c.cancel = context.WithCancel(context.Background())
-	c.eventChan = make(chan Event)
-	c.forceStopTimeout = DefaultForceStopTimeout
-	c.wPool = &WorkerPool{
-		mutex:   new(sync.RWMutex),
-		workers: make(map[WorkerName]*workerRO),
+	c := &chief{
+		eventChan:        make(chan Event),
+		forceStopTimeout: DefaultForceStopTimeout,
+		wPool: &WorkerPool{
+			mutex:   new(sync.RWMutex),
+			workers: make(map[WorkerName]*workerRO),
+		},
 	}
+
+	c.ctx, c.cancel = context.WithCancel(context.Background())
+
 	return c
+}
+
+func (c *chief) EnableServiceSocket(app AppInfo, actions ...socket.Action) {
+	statusAction := socket.Action{Name: StatusAction,
+		Handler: func(_ socket.Request) socket.Response {
+			return socket.Response{Status: socket.StatusOk,
+				Data: StateInfo{App: app, Workers: c.wPool.GetWorkersStates()}}
+		},
+	}
+
+	pingAction := socket.Action{Name: PingAction,
+		Handler: func(_ socket.Request) socket.Response {
+			return socket.Response{Status: socket.StatusOk, Data: "pong"}
+		},
+	}
+
+	actions = append(actions, statusAction, pingAction)
+	c.sw = socket.NewServer(app.SocketName(), actions...)
 }
 
 func (c *chief) AddWorker(name WorkerName, worker Worker) {
@@ -80,6 +108,10 @@ func (c *chief) AddWorkers(workers map[WorkerName]Worker) {
 			c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
 		}
 	}
+}
+
+func (c *chief) GetWorkersStates() map[WorkerName]sam.State {
+	return c.wPool.GetWorkersStates()
 }
 
 func (c *chief) SetEventHandler(handler EventHandler) {
@@ -227,6 +259,18 @@ func (c *chief) runPool() error {
 	if runCount == 0 {
 		cancel()
 		return errors.New("unable to start: there is no initialized workers")
+	}
+
+	if c.sw != nil {
+		wg.Add(1)
+		go func() {
+			if err := c.sw.Serve(ctx); err != nil {
+				c.eventChan <- ErrorEvent(
+					errors.Wrap(err, "failed to run socket listener").Error()).
+					SetWorker("internal_socket_listener")
+			}
+			wg.Done()
+		}()
 	}
 
 	<-c.ctx.Done()

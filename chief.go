@@ -241,6 +241,7 @@ func (chief *Chief) StartPool(parentCtx context.Context) int {
 	}
 
 	if runCount == 0 {
+		cancel()
 		chief.logger.Warn("No worker was running")
 		return workerPoolStartFailed
 	}

@@ -6,10 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/pkg/errors"
-
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/lancer-kit/uwe/v2"
+	"github.com/pkg/errors"
 )
 
 const ForceStopTimeout = 5 * time.Second

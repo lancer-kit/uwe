@@ -21,7 +21,7 @@ type WorkerPool struct {
 	workers map[WorkerName]*workerRO
 }
 
-//getWorker - get WorkerRO by name
+// getWorker - get WorkerRO by name
 func (pool *WorkerPool) getWorker(name WorkerName) *workerRO {
 	pool.rw.RLock()
 	defer pool.rw.RUnlock()
@@ -89,7 +89,7 @@ func (pool *WorkerPool) RunWorkerExec(name WorkerName, ctx WContext) (err error)
 		return err
 	}
 
-	//todo:
+	// todo:
 	w := pool.getWorker(name)
 	extCode := w.worker.Run(ctx)
 	switch extCode {
@@ -100,7 +100,7 @@ func (pool *WorkerPool) RunWorkerExec(name WorkerName, ctx WContext) (err error)
 	case ExitCodeInterrupted:
 		return pool.FailWorker(name)
 	case ExitReinitReq:
-		//todo
+		// todo
 	}
 
 	return

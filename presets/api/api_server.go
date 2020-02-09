@@ -108,13 +108,13 @@ func (s *Server) Run(ctx uwe.WContext) uwe.ExitCode {
 	select {
 	case <-ctx.Done():
 		s.logger.Info("Shutting down the API Server...")
-		serverCtx, _ := context.WithTimeout(context.Background(), ForceStopTimeout)
-
+		serverCtx, cancel := context.WithTimeout(context.Background(), ForceStopTimeout)
 		err := server.Shutdown(serverCtx)
 		if err != nil {
 			s.logger.Info("Api Server gracefully stopped")
 		}
 
+		cancel()
 		s.logger.Info("Api Server gracefully stopped")
 		return uwe.ExitCodeOk
 	case <-serverFailed:

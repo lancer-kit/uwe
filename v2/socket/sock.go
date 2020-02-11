@@ -144,6 +144,19 @@ func (sw *Server) Serve(ctx context.Context) (err error) {
 		return errors.Wrap(err, "unable to change the permissions for the socket")
 	}
 
+	conns := make(chan net.Conn)
+
+	go func() {
+		for {
+			socketConn, err := localSocket.Accept()
+			if err != nil {
+				sw.errors <- errors.Wrap(err, "accept failed")
+				continue
+			}
+			conns <- socketConn
+		}
+	}()
+
 	// Initiate and listen to the socket
 	for {
 		select {
@@ -159,13 +172,7 @@ func (sw *Server) Serve(ctx context.Context) (err error) {
 				return nil
 			}
 			return nil
-		default:
-			socketConn, err := localSocket.Accept()
-			if err != nil {
-				sw.errors <- errors.Wrap(err, "accept failed")
-				continue
-			}
-
+		case socketConn := <-conns:
 			err = sw.processSockRequest(socketConn)
 			if err != nil {
 				sw.errors <- errors.Wrap(err, "process failed")

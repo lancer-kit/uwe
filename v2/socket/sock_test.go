@@ -14,7 +14,7 @@ func Test_socketServer_Serve(t *testing.T) {
 	sw := NewServer(socketName, Action{
 		Name: "ping",
 		Handler: func(_ Request) Response {
-			return Response{Status: StatusOk, Data: "pong"}
+			return NewResponse(StatusOk, "pong", "")
 		},
 	})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -47,11 +47,11 @@ func Test_socketServer_Serve(t *testing.T) {
 	log.Println("Send ping")
 
 	resp, err := client.Send(req)
-	log.Println("Got Response:", resp)
+	log.Println("Got Response:", resp.Status, string(resp.Data), resp.Error)
 	assert.NoError(t, err)
 
 	assert.Equal(t, StatusOk, resp.Status)
-	assert.Equal(t, "pong", resp.Data)
+	assert.Equal(t, `"pong"`, string(resp.Data))
 
 	cancel()
 

@@ -25,9 +25,9 @@ type Config struct {
 	RestartOnFail bool `json:"restart_on_fail" yaml:"restart_on_fail"`
 }
 
-//Validate - Validate config required fields
-func (c *Config) Validate() error {
-	return validation.ValidateStruct(c,
+// Validate - Validate config required fields
+func (c Config) Validate() error {
+	return validation.ValidateStruct(&c,
 		validation.Field(&c.Host, validation.Required),
 		validation.Field(&c.Port, validation.Required),
 	)
@@ -49,7 +49,7 @@ type Server struct {
 	ctx    uwe.WContext
 }
 
-//NewServer constructor
+// NewServer constructor
 func NewServer(name string, config Config, rGetter func(*logrus.Entry, Config) http.Handler) Server {
 	return Server{
 		Name:      name,
@@ -58,7 +58,7 @@ func NewServer(name string, config Config, rGetter func(*logrus.Entry, Config) h
 	}
 }
 
-//Init worker implementation
+// Init worker implementation
 func (s *Server) Init(parentCtx context.Context) uwe.Worker {
 	var ok bool
 	s.logger, ok = parentCtx.Value(uwe.CtxKeyLog).(*logrus.Entry)
@@ -74,7 +74,7 @@ func (s *Server) Init(parentCtx context.Context) uwe.Worker {
 	return s
 }
 
-//RestartOnFail property for Chief
+// RestartOnFail property for Chief
 func (s *Server) RestartOnFail() bool {
 	if s.GetConfig != nil {
 		return s.GetConfig().RestartOnFail
@@ -82,7 +82,7 @@ func (s *Server) RestartOnFail() bool {
 	return s.Config.RestartOnFail
 }
 
-//Run api-server
+// Run api-server
 func (s *Server) Run(ctx uwe.WContext) uwe.ExitCode {
 	if s.GetConfig != nil {
 		s.Config = s.GetConfig()
@@ -123,7 +123,7 @@ func (s *Server) Run(ctx uwe.WContext) uwe.ExitCode {
 
 }
 
-//Context return application context
+// Context return application context
 func (s *Server) Context() uwe.WContext {
 	return s.ctx
 }

@@ -81,14 +81,14 @@ func NewChief() Chief {
 func (c *chief) EnableServiceSocket(app AppInfo, actions ...socket.Action) {
 	statusAction := socket.Action{Name: StatusAction,
 		Handler: func(_ socket.Request) socket.Response {
-			return socket.Response{Status: socket.StatusOk,
-				Data: StateInfo{App: app, Workers: c.wPool.GetWorkersStates()}}
+			return socket.NewResponse(socket.StatusOk,
+				StateInfo{App: app, Workers: c.wPool.GetWorkersStates()}, "")
 		},
 	}
 
 	pingAction := socket.Action{Name: PingAction,
 		Handler: func(_ socket.Request) socket.Response {
-			return socket.Response{Status: socket.StatusOk, Data: "pong"}
+			return socket.NewResponse(socket.StatusOk, "pong", "")
 		},
 	}
 

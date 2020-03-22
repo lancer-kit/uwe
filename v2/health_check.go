@@ -30,14 +30,9 @@ type StateInfo struct {
 	Workers map[WorkerName]sam.State `json:"workers"`
 }
 
-func ParseStateInfo(data interface{}) (*StateInfo, error) {
-	raw, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-
+func ParseStateInfo(data json.RawMessage) (*StateInfo, error) {
 	var res = new(StateInfo)
-	err = json.Unmarshal(raw, res)
+	err := json.Unmarshal(data, res)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +73,7 @@ func CliCheckCommand(app AppInfo, workerListProvider func(c *cli.Context) []Work
 				return nil
 			}
 
-			data, err := json.MarshalIndent(resp.Data, "", "  ")
+			data, err := json.MarshalIndent(stateInfo, "", "  ")
 			if err != nil {
 				return cli.NewExitError(err.Error(), 1)
 			}

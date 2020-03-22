@@ -11,14 +11,29 @@ import (
 )
 
 const (
-	StatusOk  = 0
-	StatusErr = 13
+	StatusOk          = 0
+	StatusErr         = 13
+	StatusInternalErr = -1
 )
 
 type Response struct {
-	Status int         `json:"status"`
-	Error  string      `json:"error,omitempty"`
-	Data   interface{} `json:"data"`
+	Status int             `json:"status"`
+	Error  string          `json:"error,omitempty"`
+	Data   json.RawMessage `json:"data"`
+}
+
+func NewResponse(status int, data interface{}, errorStr string) Response {
+	val := json.RawMessage{}
+	if data != nil {
+		var err error
+		val, err = json.Marshal(data)
+		if err != nil {
+			status = StatusInternalErr
+			errorStr = err.Error()
+		}
+
+	}
+	return Response{Status: status, Data: val, Error: errorStr}
 }
 
 type Request struct {

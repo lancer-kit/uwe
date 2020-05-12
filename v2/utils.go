@@ -3,6 +3,8 @@ package uwe
 import (
 	"errors"
 	"reflect"
+
+	"github.com/sirupsen/logrus"
 )
 
 type WorkerExistRule struct {
@@ -31,5 +33,22 @@ func (r *WorkerExistRule) Validate(value interface{}) error {
 func (r *WorkerExistRule) Error(message string) *WorkerExistRule {
 	return &WorkerExistRule{
 		message: message,
+	}
+}
+
+// LogrusEventHandler returns default `EventHandler` that can be used for `Chief.SetEventHandler()`.
+func LogrusEventHandler(entry *logrus.Entry) EventHandler {
+	return func(event Event) {
+		var level logrus.Level
+		switch event.Level {
+		case LvlFatal, LvlError:
+			level = logrus.ErrorLevel
+		case LvlInfo:
+			level = logrus.InfoLevel
+		default:
+			level = logrus.WarnLevel
+		}
+
+		entry.WithFields(event.Fields).Log(level, event.Message)
 	}
 }

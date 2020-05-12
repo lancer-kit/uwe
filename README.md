@@ -1,98 +1,99 @@
 # uwe
-United Workers Environment
 
-<hr>
+UWE (Ubiquitous Workers Engine) is a common toolset for building and organizing your Go application, life cycles of actor-like workers.  
 
-> todo: update readme
+`uwe.Chief` is a supervisor that can be placed at the top of the go application's execution stack, it is blocked until SIGTERM is intercepted and then it shutdown all workers gracefully.
 
+## Installation
 
-## Worker
+Standard `go get`:
 
-`Worker` is an interface for async workers which launches and manages by the `Chief`.
-
-The main ideas of the `Worker`: 
-- this is simple and lightweight worker;
-- it can communicate with surroundings through channels, message queues, etc;
-- worker must do one or few small jobs; 
-- should be able to run the worker as one independent process;
-
-For example microservice for the image storing can have three workers:
-
-1) Rest API - receives and gives out images from user;
-2) Image resizer - compresses and resize the image for the thumbnails;
-3) Uploader - uploads files to the S3 storage.
-
-All this workers are part of one microservice, in one binary and able to run them as a one process or as a three different. 
-
-#### Method list:
-
-- `Init(context.Context) Worker` - initializes new instance of the `Worker` implementation. 
-- `Run()` - starts the `Worker` instance execution. This should be a blocking call, which in normal mode will be executed in `goroutine`.
-
-## Chief
-
-Chief is a head of workers, it must be used to register, initialize and correctly start and stop asynchronous executors of the type `Worker`.
-
-#### Method list:
-
-- `AddWorker(name string, worker Worker` - register a new `Worker` to the `Chief` worker pool.
-- `EnableWorkers(names ...string)` - enables all worker from the `names` list. By default, all added workers are enabled.
-- `EnableWorker(name string)` - enables the worker with the specified `name`. By default, all added workers are enabled.
-- `IsEnabled(name string) bool` - checks is enable worker with passed `name`.
-- `InitWorkers(logger *logrus.Entry)` - initializes all registered workers. 
-- `Start(parentCtx context.Context)` - runs all registered workers, locks until the `parentCtx` closes, and then gracefully stops all workers.
-
-In `InitWorkers` **Chief** insert in the context his logger (`*logrus.Entry`), so at the worker you can took by key `routines.CtxKeyLog` and use it.
-
-``` go
-// .....
-func (w *MyWorker) Init(parentCtx context.Context) routines.Worker {
-    logger, ok := parentCtx.Value(routines.CtxKeyLog).(*logrus.Entry)
-    if !ok {
-        // process error
-    }
-    // add field with worker name.
-    w.Logger = logger.WithField("worker", "my-cool-worker")
-    
-    // ... do other stuff ... //
-    
-    return w
-}
-// .....
+```shell script
+go get github.com/lancer-kit/uwe/v2
 ```
 
-## Usage 
+## Usage & Example
+ 
 
-Just define the `routines.Chief` variable, register your worker using the `AddWorker` method. 
-Before starting, you must initialize registered workers using the `InitWorkers(*logrus.Entry)` method.
-
-A very simple example:
-
-``` go
+An example of service with some API and background worker:
+ 
+```go
 package main
 
 import (
-    "github.com/lancer-kit/armory/routines"
-    "context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/lancer-kit/uwe/v2"
+	"github.com/lancer-kit/uwe/v2/presets/api"
 )
 
-var WorkersChief routines.Chief
 
-func init()  {
-    WorkersChief = routines.Chief{}
-    WorkersChief.AddWorker("my-awesome-worker", &MyWorker{})
-    // `MyWorker` is a type which implement `Worker` interface.
+func main()  {
+	apiCfg := api.Config{
+		Host:              "0.0.0.0",
+		Port:              8080,
+		EnableCORS:        false,
+		ApiRequestTimeout: 0,
+	}
+
+	chief := uwe.NewChief()
+	// will add worker into the pool
+	chief.AddWorker("app-server", api.NewServer(apiCfg, getRouter()))
+
+	// will enable recover of internal panics
+	chief.UseDefaultRecover()
+	// pass handler for internal events like errors, panics, warning, etc.
+	// you can log it with you favorite logger (ex Logrus, Zap, etc)
+	chief.SetEventHandler(chiefEventHandler())
+    // init all registered workers and run it all
+	chief.Run()
 }
 
-func main () {
-    WorkersChief.InitWorkers(nil)
-    ctx, cancel := context.WithCancel(context.Background())
-    go func() {
-        WorkersChief.Start(ctx)
-    }()
-    
-    defer func() {
-        cancel()
-    }()
+type dummy struct{}
+
+func (d dummy) Init() error { return nil }
+
+func (d dummy) Run(ctx uwe.Context) error {
+	ticker := time.NewTicker(time.Second)
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("good bye")
+		case <-ticker.C:
+			log.Println("do something")
+		}
+	}
+
+}
+
+
+func getRouter() http.Handler {
+    // instead default can be used any another compatible router
+    mux := http.NewServeMux()
+    mux.HandleFunc("/hello/uwe", func(w http.ResponseWriter, r *http.Request) {
+        _, _ = fmt.Fprintln(w, "hello world")
+    })
+	log.Println("REST API router initialized")
+	return mux
+}
+
+
+func chiefEventHandler() func(event uwe.Event) {
+	return func(event uwe.Event) {
+		var level string
+		switch event.Level {
+		case uwe.LvlFatal, uwe.LvlError:
+			level = "ERROR"
+		case uwe.LvlInfo:
+			level = "INFO"
+		default:
+			level = "WARN"
+		}
+		log.Println(fmt.Sprintf("%s: %s %+v", level, event.Message, event.Fields))
+	}
 }
 ```
+

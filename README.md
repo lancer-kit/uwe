@@ -1,3 +1,5 @@
+![CI Status](https://github.com/lancer-kit/uwe/workflows/Go/badge.svg)
+
 # uwe
 United Workers Environment
 

@@ -116,14 +116,17 @@ func (chief *Chief) IsEnabled(name WorkerName) bool {
 	return chief.wPool.IsEnabled(name)
 }
 
+// GetWorkersStates returns worker state by name map
 func (chief *Chief) GetWorkersStates() map[WorkerName]sam.State {
 	return chief.wPool.GetWorkersStates()
 }
 
+// GetContext returns chief context
 func (chief *Chief) GetContext() context.Context {
 	return chief.ctx
 }
 
+// AddValueToContext update chief context and set new value by key
 func (chief *Chief) AddValueToContext(key, value interface{}) {
 	chief.ctx = context.WithValue(chief.ctx, key, value)
 }
@@ -144,6 +147,7 @@ func (chief *Chief) Run(workers ...WorkerName) error {
 	return chief.RunWithLocker(waitForSignal, workers...)
 }
 
+// RunWithContext add function waitForSignal for RunWithLocker
 func (chief *Chief) RunWithContext(ctx context.Context, workers ...WorkerName) error {
 	waitForSignal := func() {
 		<-ctx.Done()
@@ -152,8 +156,8 @@ func (chief *Chief) RunWithContext(ctx context.Context, workers ...WorkerName) e
 	return chief.RunWithLocker(waitForSignal, workers...)
 }
 
-// RunWithLocker
-// `locker` function should block the execution context and wait for some signal to stop.
+// RunWithLocker `locker` function should block the execution
+// context and wait for some signal to stop.
 func (chief *Chief) RunWithLocker(locker func(), workers ...WorkerName) (err error) {
 	err = chief.EnableWorkers(workers...)
 	if err != nil {
@@ -224,7 +228,7 @@ func (chief *Chief) StartPool(parentCtx context.Context) int {
 			continue
 		}
 
-		if err := chief.wPool.InitWorker(name, ctx); err != nil {
+		if err := chief.wPool.InitWorker(ctx, name); err != nil {
 			chief.logger.WithField("worker", name).
 				Debug("Worker disabled")
 			continue
@@ -235,7 +239,7 @@ func (chief *Chief) StartPool(parentCtx context.Context) int {
 
 		workersDirectBus := make(chan *Message, len(chief.wPool.workers)*10)
 		chief.workersEventHub[name] = workersDirectBus
-		wCtx := NewContext(name, ctx, workersDirectBus, workersEventBus)
+		wCtx := NewContext(ctx, name, workersDirectBus, workersEventBus)
 
 		go chief.runWorker(name, wCtx, wg.Done)
 	}

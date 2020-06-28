@@ -1,4 +1,5 @@
-![CI Status](https://github.com/lancer-kit/uwe/workflows/Go/badge.svg)
+[![GoDoc](https://godoc.org/github.com/lancer-kit/uwe/v2?status.png)](https://pkg.go.dev/github.com/lancer-kit/uwe/v2?tab=doc)
+[![Go Report Card](https://goreportcard.com/badge/github.com/lancer-kit/uwe)](https://goreportcard.com/report/github.com/lancer-kit/uwe)
 
 # uwe
 

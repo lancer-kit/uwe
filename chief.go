@@ -23,14 +23,14 @@ const (
 )
 
 // ForceStopTimeout is a timeout for killing all workers.
-var ForceStopTimeout = 45 * time.Second
+var ForceStopTimeout = 45 * time.Second // nolint:gochecknoglobals
 
 // Chief is a head of workers, it must be used to register, initialize
 // and correctly start and stop asynchronous executors of the type `Worker`.
 type Chief struct {
 	logger *logrus.Entry
 	ctx    context.Context
-	//cancel context.CancelFunc
+	// cancel context.CancelFunc
 
 	wPool WorkerPool
 

@@ -1,3 +1,5 @@
+![CI Status](https://github.com/lancer-kit/uwe/workflows/Go/badge.svg)
+
 # uwe
 
 UWE (Ubiquitous Workers Engine) is a common toolset for building and organizing your Go application, life cycles of actor-like workers.  

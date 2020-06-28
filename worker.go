@@ -16,6 +16,7 @@ type workerRO struct {
 	exitCode *ExitCode
 }
 
+// Const for worker state
 const (
 	WStateDisabled    sam.State = "Disabled"
 	WStateEnabled     sam.State = "Enabled"

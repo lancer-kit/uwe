@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	//ErrWorkerNotExist custom error for not-existing worker
 	ErrWorkerNotExist = func(name WorkerName) error {
 		return fmt.Errorf("%s: not exist", name)
 	}
@@ -32,7 +33,7 @@ func (pool *WorkerPool) getWorker(name WorkerName) *workerRO {
 }
 
 // InitWorker initializes all present workers.
-func (pool *WorkerPool) InitWorker(name WorkerName, ctx context.Context) error {
+func (pool *WorkerPool) InitWorker(ctx context.Context, name WorkerName) error {
 	if err := pool.SetState(name, WStateInitialized); err != nil {
 		return err
 	}
@@ -58,6 +59,7 @@ func (pool *WorkerPool) SetWorker(name WorkerName, worker Worker) {
 	pool.rw.Unlock()
 }
 
+// ReplaceWorker replace worker in the pool
 func (pool *WorkerPool) ReplaceWorker(name WorkerName, worker Worker) {
 	pool.check()
 
@@ -139,7 +141,7 @@ func (pool *WorkerPool) IsEnabled(name WorkerName) bool {
 	return pool.GetState(name) != WStateDisabled
 }
 
-// IsEnabled checks is disabled worker with passed `name`.
+// IsDisabled checks is disabled worker with passed `name`.
 func (pool *WorkerPool) IsDisabled(name WorkerName) bool {
 	if pool.workers == nil {
 		return false

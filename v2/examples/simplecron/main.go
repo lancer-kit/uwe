@@ -5,11 +5,11 @@ import (
 	"time"
 
 	"github.com/lancer-kit/uwe/v2"
-	"github.com/lancer-kit/uwe/v2/presets/cron"
+	"github.com/lancer-kit/uwe/v2/presets"
 )
 
 func main() {
-	job := cron.NewJob(3*time.Second, run)
+	job := presets.NewJob(3*time.Second, run)
 	chief := uwe.NewChief()
 	chief.AddWorker("cron-job", job)
 	chief.Run()

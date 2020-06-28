@@ -15,30 +15,63 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Chief is a supervisor that can be placed at the top of the go application's execution stack,
+// it is blocked until SIGTERM is intercepted and then it shutdown all workers gracefully.
+// Also, `Chief` can be used as a child supervisor inside the `Worker`, which is launched by `Chief` at the top-level.
 type Chief interface {
-	Run()
-	Shutdown()
-
+	// AddWorker registers the worker in the pool.
 	AddWorker(WorkerName, Worker)
+	// AddWorkers registers the list of workers in the pool.
 	AddWorkers(map[WorkerName]Worker)
+	// GetWorkersStates returns the current state of all registered workers.
 	GetWorkersStates() map[WorkerName]sam.State
-
-	SetEventHandler(EventHandler)
-	SetContext(context.Context)
-	SetLocker(Locker)
-	SetRecover(Recover)
-	UseDefaultRecover()
-	SetShutdown(Shutdown)
-
-	Event() <-chan Event
-
+	// EnableServiceSocket initializes `net.Socket` server for internal management purposes.
+	// By default includes two actions:
+	// 	- "status" is a command useful for health-checks, because it returns status of all workers;
+	// 	- "ping" is a simple command that returns the "pong" message.
+	// The user can provide his own list of actions with handler closures.
 	EnableServiceSocket(app AppInfo, actions ...socket.Action)
+	// Event returns the channel with internal Events.
+	// ATTENTION: `Event() <-chan Event` and `SetEventHandler(EventHandler)` is mutually exclusive,
+	// but one of them must be used!
+	Event() <-chan Event
+	// SetEventHandler adds a callback that processes the `Chief`
+	// internal events and can log them or do something else.
+	// ATTENTION: `Event() <-chan Event` and `SetEventHandler(EventHandler)` is mutually exclusive,
+	// but one of them must be used!
+	SetEventHandler(EventHandler)
+	// SetContext replaces the default context with the provided one.
+	// It can be used to deliver some values inside `(Worker) .Run (ctx Context)`.
+	SetContext(context.Context)
+	// SetLocker sets a custom `Locker`, if it is not set,
+	// the default `Locker` will be used, which expects SIGTERM or SIGINT system signals.
+	SetLocker(Locker)
+	// SetRecover sets a custom `recover` that catches panic.
+	SetRecover(Recover)
+	// SetShutdown sets `Shutdown` callback.
+	SetShutdown(Shutdown)
+	// UseDefaultRecover sets a standard handler as a `recover`
+	// that catches panic and sends a fatal event to the event channel.
+	UseDefaultRecover()
+	// Run is the main entry point into the `Chief` run loop.
+	// This method initializes all added workers, the server `net.Socket`,
+	// if enabled, starts the workers in separate routines
+	// and waits for the end of lock produced by the locker function.
+	Run()
+	// Shutdown sends stop signal to all child goroutines by triggering of the `context.CancelFunc()`
+	// and executes `Shutdown` callback.
+	Shutdown()
 }
 
 type (
-	Locker       func()
-	Recover      func(name WorkerName)
-	Shutdown     func()
+	// Locker is a function whose completion of a call is a signal to stop `Chief` and all workers.
+	Locker func()
+	// Recover is a function that will be used as a `defer call` to handle each worker's panic.
+	Recover func(name WorkerName)
+	// // Shutdown is a callback function that will be executed after the Chief and workers are stopped.
+	// Its main purpose is to close, complete, or retain some global states or shared resources.
+	Shutdown func()
+	// EventHandler callback that processes the `Chief` internal events, can log them or do something else.
 	EventHandler func(Event)
 )
 
@@ -63,6 +96,7 @@ type chief struct {
 	sw *socket.Server
 }
 
+// NewChief returns new instance of standard `Chief` implementation.
 func NewChief() Chief {
 	c := &chief{
 		eventChan:        make(chan Event),
@@ -74,10 +108,14 @@ func NewChief() Chief {
 	}
 
 	c.ctx, c.cancel = context.WithCancel(context.Background())
-
 	return c
 }
 
+// EnableServiceSocket initializes `net.Socket` server for internal management purposes.
+// By default includes two actions:
+// 	- "status" is a command useful for health-checks, because it returns status of all workers;
+// 	- "ping" is a simple command that returns the "pong" message.
+// The user can provide his own list of actions with handler closures.
 func (c *chief) EnableServiceSocket(app AppInfo, actions ...socket.Action) {
 	statusAction := socket.Action{Name: StatusAction,
 		Handler: func(_ socket.Request) socket.Response {
@@ -96,12 +134,14 @@ func (c *chief) EnableServiceSocket(app AppInfo, actions ...socket.Action) {
 	c.sw = socket.NewServer(app.SocketName(), actions...)
 }
 
+// AddWorker registers the worker in the pool.
 func (c *chief) AddWorker(name WorkerName, worker Worker) {
 	if err := c.wPool.SetWorker(name, worker); err != nil {
 		c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
 	}
 }
 
+// AddWorkers registers the list of workers in the pool.
 func (c *chief) AddWorkers(workers map[WorkerName]Worker) {
 	for name, worker := range workers {
 		if err := c.wPool.SetWorker(name, worker); err != nil {
@@ -110,26 +150,36 @@ func (c *chief) AddWorkers(workers map[WorkerName]Worker) {
 	}
 }
 
+// GetWorkersStates returns the current state of all registered workers.
 func (c *chief) GetWorkersStates() map[WorkerName]sam.State {
 	return c.wPool.GetWorkersStates()
 }
 
+// SetEventHandler adds a callback that processes the `Chief`
+// internal events and can log them or do something else.
 func (c *chief) SetEventHandler(handler EventHandler) {
 	c.eventHandler = handler
 }
 
+// SetContext replaces the default context with the provided one.
+// It can be used to deliver some values inside `(Worker) .Run (ctx Context)`.
 func (c *chief) SetContext(ctx context.Context) {
 	c.ctx = ctx
 }
 
+// SetLocker sets a custom `Locker`, if it is not set,
+// the default `Locker` will be used, which expects SIGTERM or SIGINT system signals.
 func (c *chief) SetLocker(locker Locker) {
 	c.locker = locker
 }
 
+// SetRecover sets a custom `recover` that catches panic.
 func (c *chief) SetRecover(recover Recover) {
 	c.recover = recover
 }
 
+// UseDefaultRecover sets a standard handler as a `recover`
+// that catches panic and sends a fatal event to the event channel.
 func (c *chief) UseDefaultRecover() {
 	c.recover = func(name WorkerName) {
 		r := recover()
@@ -155,14 +205,17 @@ func (c *chief) UseDefaultRecover() {
 	}
 }
 
+// SetShutdown sets `Shutdown` callback.
 func (c *chief) SetShutdown(shutdown Shutdown) {
 	c.shutdown = shutdown
 }
 
+// SetForceStopTimeout replaces the `DefaultForceStopTimeout`.
 func (c *chief) SetForceStopTimeout(forceStopTimeout time.Duration) {
 	c.forceStopTimeout = forceStopTimeout
 }
 
+// Event returns the channel with internal Events.
 func (c *chief) Event() <-chan Event {
 	if c.eventHandler != nil {
 		return nil
@@ -172,6 +225,10 @@ func (c *chief) Event() <-chan Event {
 	return c.eventChan
 }
 
+// Run is the main entry point into the `Chief` run loop.
+// This method initializes all added workers, the server `net.Socket`,
+// if enabled, starts the workers in separate goroutines
+// and waits for the end of lock produced by the locker function.
 func (c *chief) Run() {
 	if c.locker == nil {
 		c.locker = waitForSignal
@@ -187,6 +244,8 @@ func (c *chief) Run() {
 	c.run()
 }
 
+// Shutdown sends stop signal to all child goroutines by triggering of the `context.CancelFunc()`
+// and executes `Shutdown` callback.
 func (c *chief) Shutdown() {
 	c.cancel()
 

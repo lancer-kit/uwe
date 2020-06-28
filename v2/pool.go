@@ -1,33 +1,16 @@
 package uwe
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/lancer-kit/sam"
 	"github.com/pkg/errors"
 )
 
-var (
-	ErrWorkerNotExist = func(name WorkerName) error {
-		return fmt.Errorf("%s: not exist", name)
-	}
-)
-
-// WorkerPool is
+// WorkerPool provides a mechanism to combine many workers into the one pool, manage them, and run.
 type WorkerPool struct {
 	mutex   *sync.RWMutex
 	workers map[WorkerName]*workerRO
-}
-
-// getWorker - get WorkerRO by name
-func (p *WorkerPool) getWorker(name WorkerName) *workerRO {
-	p.mutex.RLock()
-	defer p.mutex.RUnlock()
-	if wk, ok := p.workers[name]; ok {
-		return wk
-	}
-	return nil
 }
 
 // InitWorker initializes all present workers.
@@ -60,6 +43,7 @@ func (p *WorkerPool) SetWorker(name WorkerName, worker Worker) error {
 	return nil
 }
 
+// ReplaceWorker replaces the worker with `name` by new `worker`.
 func (p *WorkerPool) ReplaceWorker(name WorkerName, worker Worker) {
 	p.check()
 
@@ -82,7 +66,17 @@ func (p *WorkerPool) RunWorkerExec(ctx Context, name WorkerName) (err error) {
 	return nil
 }
 
-// ============ Methods relating to the workers states ============
+// getWorker - get WorkerRO by name
+func (p *WorkerPool) getWorker(name WorkerName) *workerRO {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
+	if wk, ok := p.workers[name]; ok {
+		return wk
+	}
+	return nil
+}
+
+// ============ Methods related to workers status management ============
 
 // GetWorkersStates returns current state of all workers.
 func (p *WorkerPool) GetWorkersStates() map[WorkerName]sam.State {
@@ -134,7 +128,7 @@ func (p *WorkerPool) SetState(name WorkerName, state sam.State) error {
 	p.mutex.Lock()
 	_, ok := p.workers[name]
 	if !ok {
-		return ErrWorkerNotExist(name)
+		return errors.New(string(name) + ": not exist")
 	}
 
 	err := p.workers[name].GoTo(state)

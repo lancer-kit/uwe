@@ -10,9 +10,10 @@ UWE (Ubiquitous Workers Engine) is a common toolset for building and organizing 
 
 1. [Quick Start](#quick-start)
 2. [Documentation](#documentation)
-    2. [Chief](#chief)
-    3. [Worker](#worker)
-    4. [Presets](#presets)
+
+    1. [Chief](#chief)
+    2. [Worker](#worker)
+    3. [Presets](#presets)
 
 
 ## Quick Start

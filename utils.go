@@ -2,6 +2,7 @@ package uwe
 
 import "errors"
 
+// WorkerExistRule implements Rule interface for validation
 type WorkerExistRule struct {
 	message          string
 	AvailableWorkers map[WorkerName]struct{}

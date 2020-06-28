@@ -15,6 +15,7 @@ type Worker interface {
 	Run(ctx WContext) ExitCode
 }
 
+// ExitCode custom type
 type ExitCode int
 
 const (
@@ -24,6 +25,6 @@ const (
 	ExitCodeInterrupted
 	// ExitCodeFailed means that the worker fails.
 	ExitCodeFailed
-	// ExitNeedReInit means that the worker can't do job and requires reinitialization.
+	// ExitReinitReq means that the worker can't do job and requires reinitialization.
 	ExitReinitReq
 )

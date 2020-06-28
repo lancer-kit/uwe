@@ -5,8 +5,10 @@ import (
 	"fmt"
 )
 
+// WorkerName custom type
 type WorkerName string
 
+// Message type declaration
 type Message struct {
 	UID    int64
 	Target WorkerName
@@ -14,6 +16,7 @@ type Message struct {
 	Data   interface{}
 }
 
+// WContext declare interface for workers with context
 type WContext interface {
 	context.Context
 	SendMessage(target WorkerName, data interface{}) error
@@ -31,7 +34,8 @@ type wContext struct {
 	out chan<- *Message
 }
 
-func NewContext(name WorkerName, ctx context.Context, in, out chan *Message) WContext {
+// NewContext constructor for worker with context
+func NewContext(ctx context.Context, name WorkerName, in, out chan *Message) WContext {
 	return &wContext{
 		Context: ctx,
 		name:    name,
@@ -41,6 +45,7 @@ func NewContext(name WorkerName, ctx context.Context, in, out chan *Message) WCo
 
 }
 
+// SendMessage implements WContext.SendMessage. Send message to worker by name.
 func (wc *wContext) SendMessage(target WorkerName, data interface{}) error {
 	wc.out <- &Message{
 		UID:    0,
@@ -51,6 +56,7 @@ func (wc *wContext) SendMessage(target WorkerName, data interface{}) error {
 	return nil
 }
 
+// MessageBus implements WContext.MessageBus receiver for messages
 func (wc *wContext) MessageBus() <-chan *Message {
 	return wc.in
 }
@@ -71,6 +77,7 @@ type workerSignal struct {
 	msg  string
 }
 
+// Error implements error message stringer
 func (s *workerSignal) Error() string {
 	return fmt.Sprintf("%s(%v); %s", s.name, s.sig, s.msg)
 }

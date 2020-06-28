@@ -26,8 +26,8 @@ const (
 	WStateFailed      sam.State = "Failed"
 )
 
-// WorkersStates list of valid workers states
-var WorkersStates = map[sam.State]struct{}{
+// WorkersStates list of valid workers states.
+var WorkersStates = map[sam.State]struct{}{ // nolint:gochecknoglobals
 	WStateDisabled:    {},
 	WStateEnabled:     {},
 	WStateInitialized: {},

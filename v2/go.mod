@@ -9,6 +9,7 @@ require (
 	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible
 	github.com/lancer-kit/sam v0.0.0-20190828205034-ab78e42fc7ce
 	github.com/pkg/errors v0.8.1
+	github.com/sirupsen/logrus v1.5.0
 	github.com/stretchr/testify v1.4.0
 	github.com/urfave/cli v1.22.2
 )

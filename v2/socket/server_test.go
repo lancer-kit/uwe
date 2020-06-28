@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_socketServer_Serve(t *testing.T) {
+func TestServer_Serve(t *testing.T) {
 	socketName := "/tmp/uwe_test.socket"
 	sw := NewServer(socketName, Action{
 		Name: "ping",
@@ -57,5 +57,4 @@ func Test_socketServer_Serve(t *testing.T) {
 
 	<-done
 	<-done
-
 }

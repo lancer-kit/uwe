@@ -11,14 +11,14 @@ import (
 	"github.com/pkg/errors"
 )
 
-const ForceStopTimeout = 5 * time.Second
+const forceStopTimeout = 5 * time.Second
 
 // Config is a parameters for `http.Server`.
 type Config struct {
 	Host              string `json:"host" yaml:"host"`
 	Port              int    `json:"port" yaml:"port"`
 	EnableCORS        bool   `json:"enable_cors" yaml:"enable_cors"`
-	ApiRequestTimeout int    `json:"api_request_timeout" yaml:"api_request_timeout"`
+	ApiRequestTimeout int    `json:"api_request_timeout" yaml:"api_request_timeout"` // nolint:golint
 }
 
 // Validate - Validate config required fields
@@ -34,12 +34,17 @@ func (c *Config) TCPAddr() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }
 
-// Server
+// Server is worker by default for starting a standard HTTP server.
+// Server requires configuration and filled `http.Handler`.
+// The HTTP server will work properly and will be correctly disconnected upon a signal from Supervisor (Chief).
+// Warning: this Server does not process SSL/TLS certificates on its own.
+// 		To start an HTTPS server, look for a specific worker.
 type Server struct {
 	config Config
 	router http.Handler
 }
 
+// NewServer returns a new instance of `Server` with the passed configuration and HTTP router.
 func NewServer(config Config, router http.Handler) *Server {
 	return &Server{
 		config: config,
@@ -47,14 +52,13 @@ func NewServer(config Config, router http.Handler) *Server {
 	}
 }
 
-func (s *Server) Init() error {
-	return nil
-}
+// Init is a method to satisfy `uwe.Worker` interface.
+func (s *Server) Init() error { return nil }
 
+// Run starts serving the passed `http.Handler` with HTTP server.
 func (s *Server) Run(ctx uwe.Context) error {
-	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 	server := &http.Server{
-		Addr:    addr,
+		Addr:    s.config.TCPAddr(),
 		Handler: s.router,
 	}
 
@@ -68,7 +72,7 @@ func (s *Server) Run(ctx uwe.Context) error {
 
 	select {
 	case <-ctx.Done():
-		serverCtx, cancel := context.WithTimeout(context.Background(), ForceStopTimeout)
+		serverCtx, cancel := context.WithTimeout(context.Background(), forceStopTimeout)
 		defer cancel()
 
 		err := server.Shutdown(serverCtx)

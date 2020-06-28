@@ -63,6 +63,7 @@ func (wc *wContext) MessageBus() <-chan *Message {
 
 type execStatus string
 
+// nolint:varcheck,deadcode
 const (
 	signalOk             execStatus = "ok"
 	signalInterrupted    execStatus = "interrupted"

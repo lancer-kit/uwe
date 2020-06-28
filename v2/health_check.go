@@ -2,7 +2,6 @@ package uwe
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/lancer-kit/sam"
 	"github.com/lancer-kit/uwe/v2/socket"
@@ -10,10 +9,13 @@ import (
 )
 
 const (
+	// StatusAction is a command useful for health-checks, because it returns status of all workers.
 	StatusAction = "status"
-	PingAction   = "ping"
+	// PingAction is a simple command that returns the "pong" message.
+	PingAction = "ping"
 )
 
+// AppInfo is a details of the *Application* build.
 type AppInfo struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
@@ -21,15 +23,18 @@ type AppInfo struct {
 	Tag     string `json:"tag"`
 }
 
+// SocketName returns name of *Chief Service Socket*.
 func (app AppInfo) SocketName() string {
 	return "/tmp/_uwe_" + app.Name + ".socket"
 }
 
+// StateInfo is result the `StatusAction` command.
 type StateInfo struct {
 	App     AppInfo                  `json:"app"`
 	Workers map[WorkerName]sam.State `json:"workers"`
 }
 
+// ParseStateInfo decodes `StateInfo` from the JSON response for the `StatusAction` command.
 func ParseStateInfo(data json.RawMessage) (*StateInfo, error) {
 	var res = new(StateInfo)
 	err := json.Unmarshal(data, res)
@@ -41,6 +46,8 @@ func ParseStateInfo(data json.RawMessage) (*StateInfo, error) {
 
 }
 
+// CliCheckCommand returns `cli.Command`, which allows you to check the health of a running instance **Application**
+// with `ServiceSocket` enabled using `(Chief) .EnableServiceSocket(...)`
 func CliCheckCommand(app AppInfo, workerListProvider func(c *cli.Context) []WorkerName) cli.Command {
 	const detailsFlag = "details"
 	return cli.Command{
@@ -78,7 +85,7 @@ func CliCheckCommand(app AppInfo, workerListProvider func(c *cli.Context) []Work
 				return cli.NewExitError(err.Error(), 1)
 			}
 
-			fmt.Println(string(data))
+			println(string(data))
 			return nil
 		},
 

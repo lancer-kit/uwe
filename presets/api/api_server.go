@@ -11,14 +11,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var ForceStopTimeout = 5 * time.Second
+// ForceStopTimeout ...
+var ForceStopTimeout = 5 * time.Second // nolint:gochecknoglobals
 
 // Config is a parameters for `http.Server`.
 type Config struct {
 	Host string `json:"host" yaml:"host"`
 	Port int    `json:"port" yaml:"port"`
 
-	ApiRequestTimeout int  `json:"api_request_timeout" yaml:"api_request_timeout"`
+	ApiRequestTimeout int  `json:"api_request_timeout" yaml:"api_request_timeout"` // nolint:golint,stylecheck
 	DevMod            bool `json:"dev_mod" yaml:"dev_mod"`
 	EnableCORS        bool `json:"enable_cors" yaml:"enable_cors"`
 

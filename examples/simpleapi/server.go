@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi"
-	"github.com/lancer-kit/uwe/v2"
-	"github.com/lancer-kit/uwe/v2/presets/api"
+	"github.com/lancer-kit/uwe/v3"
+	"github.com/lancer-kit/uwe/v3/presets/api"
 )
 
 func main() {

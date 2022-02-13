@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lancer-kit/uwe/v2"
-	"github.com/lancer-kit/uwe/v2/presets"
+	"github.com/lancer-kit/uwe/v3"
+	"github.com/lancer-kit/uwe/v3/presets"
 )
 
 func main() {

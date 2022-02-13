@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/lancer-kit/sam"
-	"github.com/lancer-kit/uwe/v2/socket"
+	"github.com/lancer-kit/uwe/v3/socket"
 	"github.com/urfave/cli"
 )
 
@@ -71,7 +71,7 @@ func CliCheckCommand(app AppInfo, workerListProvider func(c *cli.Context) []Work
 
 			for _, worker := range workerListProvider(c) {
 				state := stateInfo.Workers[worker]
-				if state != WStateRun {
+				if state != wStateRun {
 					return cli.NewExitError(worker+" is not active", 7)
 				}
 			}

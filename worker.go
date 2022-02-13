@@ -4,57 +4,62 @@ import (
 	"context"
 
 	"github.com/lancer-kit/sam"
-	"github.com/sirupsen/logrus"
+	"github.com/pkg/errors"
 )
+
+type WorkerName string
+
+// Worker is an interface for async workers
+// which launches and manages by the `Chief`.
+type Worker interface {
+	// Init initializes some state of the worker that required interaction with outer context,
+	// for example, initialize some connectors. In many cases this method is optional,
+	// so it can be implemented as empty: `func (*W) Init() error { return nil }`.
+	Init() error
+
+	// Run  starts the `Worker` instance execution. The context will provide a signal
+	// when a worker must stop through the `ctx.Done()`.
+	Run(ctx Context) error
+}
 
 // workerRO worker runtime object, hold worker instance, state and communication chanel
 type workerRO struct {
 	sam.StateMachine
 	worker   Worker
 	canceler context.CancelFunc
-	eventBus chan Message
-	exitCode *ExitCode
 }
 
-// Const for worker state
 const (
-	WStateDisabled    sam.State = "Disabled"
-	WStateEnabled     sam.State = "Enabled"
-	WStateInitialized sam.State = "Initialized"
-	WStateRun         sam.State = "Run"
-	WStateStopped     sam.State = "Stopped"
-	WStateFailed      sam.State = "Failed"
+	wStateNotExists   sam.State = "NotExists"
+	wStateNew         sam.State = "New"
+	wStateInitialized sam.State = "Initialized"
+	wStateRun         sam.State = "Run"
+	wStateStopped     sam.State = "Stopped"
+	wStateFailed      sam.State = "Failed"
 )
-
-// WorkersStates list of valid workers states.
-var WorkersStates = map[sam.State]struct{}{ // nolint:gochecknoglobals
-	WStateDisabled:    {},
-	WStateEnabled:     {},
-	WStateInitialized: {},
-	WStateRun:         {},
-	WStateStopped:     {},
-	WStateFailed:      {},
-}
 
 // newWorkerSM returns filled state machine of the worker lifecycle
 //
-// (*) -> [Disabled] -> [Enabled] -> [Initialized] -> [Run] <-> [Stopped]
-//          ↑ ↑____________|  |          |  |  ↑         |
-//          |_________________|__________|  |  |------|  ↓
-//                            |-------------|-----> [Failed]
-func newWorkerSM() sam.StateMachine {
+// (*) -> [New] -> [Initialized] -> [Run] -> [Stopped]
+//          |             |           |
+//          |             |           ↓
+//          |-------------|------> [Failed]
+func newWorkerSM() (sam.StateMachine, error) {
 	sm := sam.NewStateMachine()
-	workerSM, err := sm.
-		AddTransitions(WStateDisabled, WStateEnabled).
-		AddTransitions(WStateEnabled, WStateInitialized, WStateFailed, WStateDisabled).
-		AddTransitions(WStateInitialized, WStateRun, WStateFailed, WStateDisabled).
-		AddTransitions(WStateRun, WStateStopped, WStateFailed).
-		AddTransitions(WStateStopped, WStateRun).
-		AddTransitions(WStateFailed, WStateInitialized, WStateDisabled).
-		Finalize(WStateDisabled)
+	s := &sm
+
+	workerSM, err := s.
+		AddTransitions(wStateNew, wStateInitialized, wStateFailed).
+		AddTransitions(wStateInitialized, wStateRun, wStateFailed).
+		AddTransitions(wStateRun, wStateStopped, wStateFailed).
+		Finalize(wStateStopped)
 	if err != nil || workerSM == nil {
-		logrus.Fatal("worker state machine init failed: ", err)
+		return sm, errors.Wrap(err, "worker state machine init failed: ")
 	}
 
-	return workerSM.Clone()
+	if err = workerSM.SetState(wStateNew); err != nil {
+		return sm, errors.Wrap(err, "failed to set state new")
+	}
+
+	return workerSM.Clone(), nil
 }

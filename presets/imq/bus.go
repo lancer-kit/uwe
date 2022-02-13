@@ -3,7 +3,7 @@ package imq
 import (
 	"context"
 
-	"github.com/lancer-kit/uwe/v2"
+	"github.com/lancer-kit/uwe/v3"
 )
 
 type MessageKind int

@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/lancer-kit/uwe/v2"
+	"github.com/lancer-kit/uwe/v3"
 )
 
 func Example() {
@@ -14,7 +14,7 @@ func Example() {
 		Host:              "0.0.0.0",
 		Port:              8080,
 		EnableCORS:        false,
-		ApiRequestTimeout: 0,
+		APIRequestTimeout: 0,
 	}
 
 	// initialize new instance of Chief

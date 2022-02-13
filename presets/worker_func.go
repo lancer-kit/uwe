@@ -1,7 +1,7 @@
 package presets
 
 import (
-	"github.com/lancer-kit/uwe/v2"
+	"github.com/lancer-kit/uwe/v3"
 )
 
 // WorkerFunc is a type of worker that consist from one function.

@@ -55,7 +55,7 @@ func (sw *Server) Serve(ctx context.Context) (err error) {
 		}
 	}()
 
-	if err := sw.removeSocket(); err != nil {
+	if err = sw.removeSocket(); err != nil {
 		return err
 	}
 
@@ -75,7 +75,8 @@ func (sw *Server) Serve(ctx context.Context) (err error) {
 
 	go func() {
 		for {
-			socketConn, err := localSocket.Accept()
+			var socketConn net.Conn
+			socketConn, err = localSocket.Accept()
 			if err != nil {
 				sw.errors <- errors.Wrap(err, "accept failed")
 				continue
@@ -94,7 +95,7 @@ func (sw *Server) Serve(ctx context.Context) (err error) {
 				return nil
 			}
 
-			if err := sw.removeSocket(); err != nil {
+			if err = sw.removeSocket(); err != nil {
 				sw.errors <- err
 				return nil
 			}

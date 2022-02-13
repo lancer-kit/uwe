@@ -1,30 +1,24 @@
+// Package uwe (Ubiquitous Workers Engine) is a common toolset for building and
+// organizing Go application with actor-like workers.
+//
+// `Chief` is a supervisor that can be placed at the top of the go application's execution stack,
+// it is blocked until SIGTERM is intercepted and then it shutdown all workers gracefully.
+// Also, `Chief` can be used as a child supervisor inside the` Worker`, which is launched by `Chief` at the top-level.
+//
+// `Worker` is an interface for async workers which launches and manages by the **Chief**.
+//
+// 1. `Init()` - method used to initialize some state of the worker that required interaction with outer context,
+// for example, initialize some connectors. In many cases this method is optional, so it can be implemented as empty:
+//  `func (*W) Init() error { return nil }`.
+// 2. `Run(ctx Context) error` - starts the `Worker` instance execution. The context will provide a signal
+// when a worker must stop through the `ctx.Done()`.
+//
+// Workers lifecycle:
+//
+// ```text
+// (*) -> [New] -> [Initialized] -> [Run] -> [Stopped]
+//          |             |           |
+//          |             |           ↓
+//          |-------------|------> [Failed]
+// ```
 package uwe
-
-import "context"
-
-// Worker is an interface for async workers
-// which launches and manages by the `Chief`.
-type Worker interface {
-	// Init initializes new instance of the `Worker` implementation,
-	// this context should be used only as Key/Value transmitter,
-	// DO NOT use it for `<- ctx.Done()`
-	Init(ctx context.Context) Worker
-	// RestartOnFail determines the need to restart the worker, if it stopped.
-	RestartOnFail() bool
-	// Run starts the `Worker` instance execution.
-	Run(ctx WContext) ExitCode
-}
-
-// ExitCode custom type
-type ExitCode int
-
-const (
-	// ExitCodeOk means that the worker is stopped.
-	ExitCodeOk ExitCode = iota
-	// ExitCodeInterrupted means that the work cycle has been interrupted and can be restarted.
-	ExitCodeInterrupted
-	// ExitCodeFailed means that the worker fails.
-	ExitCodeFailed
-	// ExitReinitReq means that the worker can't do job and requires reinitialization.
-	ExitReinitReq
-)

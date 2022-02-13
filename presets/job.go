@@ -3,7 +3,7 @@ package presets
 import (
 	"time"
 
-	"github.com/lancer-kit/uwe/v2"
+	"github.com/lancer-kit/uwe/v3"
 )
 
 // Job is a primitive worker who performs an `action` callback with a given period.

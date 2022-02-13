@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/lancer-kit/uwe/v2"
+	"github.com/lancer-kit/uwe/v3"
 	"github.com/pkg/errors"
 )
 

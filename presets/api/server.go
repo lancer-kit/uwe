@@ -7,7 +7,7 @@ import (
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
-	"github.com/lancer-kit/uwe/v2"
+	"github.com/lancer-kit/uwe/v3"
 	"github.com/pkg/errors"
 )
 
@@ -18,7 +18,7 @@ type Config struct {
 	Host              string `json:"host" yaml:"host"`
 	Port              int    `json:"port" yaml:"port"`
 	EnableCORS        bool   `json:"enable_cors" yaml:"enable_cors"`
-	ApiRequestTimeout int    `json:"api_request_timeout" yaml:"api_request_timeout"` // nolint:golint
+	APIRequestTimeout int    `json:"api_request_timeout" yaml:"api_request_timeout"` // nolint:golint
 }
 
 // Validate - Validate config required fields

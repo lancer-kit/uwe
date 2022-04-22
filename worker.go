@@ -2,9 +2,9 @@ package uwe
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/lancer-kit/sam"
-	"github.com/pkg/errors"
 )
 
 type WorkerName string
@@ -30,12 +30,12 @@ type workerRO struct {
 }
 
 const (
-	wStateNotExists   sam.State = "NotExists"
-	wStateNew         sam.State = "New"
-	wStateInitialized sam.State = "Initialized"
-	wStateRun         sam.State = "Run"
-	wStateStopped     sam.State = "Stopped"
-	wStateFailed      sam.State = "Failed"
+	WStateNotExists   sam.State = "NotExists"
+	WStateNew         sam.State = "New"
+	WStateInitialized sam.State = "Initialized"
+	WStateRun         sam.State = "Run"
+	WStateStopped     sam.State = "Stopped"
+	WStateFailed      sam.State = "Failed"
 )
 
 // newWorkerSM returns filled state machine of the worker lifecycle
@@ -49,16 +49,16 @@ func newWorkerSM() (sam.StateMachine, error) {
 	s := &sm
 
 	workerSM, err := s.
-		AddTransitions(wStateNew, wStateInitialized, wStateFailed).
-		AddTransitions(wStateInitialized, wStateRun, wStateFailed).
-		AddTransitions(wStateRun, wStateStopped, wStateFailed).
-		Finalize(wStateStopped)
+		AddTransitions(WStateNew, WStateInitialized, WStateFailed).
+		AddTransitions(WStateInitialized, WStateRun, WStateFailed).
+		AddTransitions(WStateRun, WStateStopped, WStateFailed).
+		Finalize(WStateStopped)
 	if err != nil || workerSM == nil {
-		return sm, errors.Wrap(err, "worker state machine init failed: ")
+		return sm, fmt.Errorf("worker state machine init failed: %s", err)
 	}
 
-	if err = workerSM.SetState(wStateNew); err != nil {
-		return sm, errors.Wrap(err, "failed to set state new")
+	if err = workerSM.SetState(WStateNew); err != nil {
+		return sm, fmt.Errorf("failed to set state new: %s", err)
 	}
 
 	return workerSM.Clone(), nil

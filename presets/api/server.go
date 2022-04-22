@@ -2,13 +2,12 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/lancer-kit/uwe/v3"
-	"github.com/pkg/errors"
 )
 
 const forceStopTimeout = 5 * time.Second
@@ -23,10 +22,13 @@ type Config struct {
 
 // Validate - Validate config required fields
 func (c Config) Validate() error {
-	return validation.ValidateStruct(&c,
-		validation.Field(&c.Host, validation.Required),
-		validation.Field(&c.Port, validation.Required),
-	)
+	if c.Host == "" {
+		return errors.New("host cannot be blank")
+	}
+	if c.Port == 0 {
+		return errors.New("port cannot be blank")
+	}
+	return nil
 }
 
 // TCPAddr returns tcp address for server.
@@ -77,11 +79,11 @@ func (s *Server) Run(ctx uwe.Context) error {
 
 		err := server.Shutdown(serverCtx)
 		if err != nil {
-			return errors.Wrap(err, "server shutdown failed")
+			return fmt.Errorf("server shutdown failed: %s", err)
 		}
 		return nil
 	case err := <-serverFailed:
-		return errors.Wrap(err, "server failed")
+		return fmt.Errorf("server failed: %s", err)
 	}
 
 }

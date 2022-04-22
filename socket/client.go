@@ -2,9 +2,8 @@ package socket
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
-
-	"github.com/pkg/errors"
 )
 
 // Client provides the ability to communicate over the socket
@@ -31,13 +30,13 @@ func (client Client) Send(request Request) (*Response, error) {
 
 	err = encode.Encode(request)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to encode input")
+		return nil, fmt.Errorf("unable to encode input: %s", err)
 	}
 
 	response := &Response{}
 	err = decode.Decode(response)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to decode input")
+		return nil, fmt.Errorf("unable to decode input: %s", err)
 	}
 	return response, nil
 }

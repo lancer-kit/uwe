@@ -14,7 +14,5 @@ type ctx struct {
 
 // NewContext returns new context.
 func NewContext() Context {
-	return ctx{
-		Context: context.Background(),
-	}
+	return ctx{Context: context.Background()}
 }

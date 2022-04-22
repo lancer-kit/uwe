@@ -16,7 +16,7 @@ import (
 )
 
 // Chief is a supervisor that can be placed at the top of the go application's execution stack,
-// it is blocked until SIGTERM is intercepted and then it shutdown all workers gracefully.
+// it is blocked until SIGTERM is intercepted, and then it shut down all workers gracefully.
 // Also, `Chief` can be used as a child supervisor inside the `Worker`, which is launched by `Chief` at the top-level.
 type Chief interface {
 	// AddWorker registers the worker in the pool.
@@ -26,7 +26,7 @@ type Chief interface {
 	// GetWorkersStates returns the current state of all registered workers.
 	GetWorkersStates() map[WorkerName]sam.State
 	// EnableServiceSocket initializes `net.Socket` server for internal management purposes.
-	// By default includes two actions:
+	// By default, includes two actions:
 	// 	- "status" is a command useful for health-checks, because it returns status of all workers;
 	// 	- "ping" is a simple command that returns the "pong" message.
 	// The user can provide his own list of actions with handler closures.
@@ -68,7 +68,7 @@ type (
 	Locker func()
 	// Recover is a function that will be used as a `defer call` to handle each worker's panic.
 	Recover func(name WorkerName)
-	// // Shutdown is a callback function that will be executed after the Chief and workers are stopped.
+	// Shutdown is a callback function that will be executed after the Chief and workers are stopped.
 	// Its main purpose is to close, complete, or retain some global states or shared resources.
 	Shutdown func()
 	// EventHandler callback that processes the `Chief` internal events, can log them or do something else.
@@ -87,7 +87,7 @@ type chief struct {
 	locker   Locker
 	recover  Recover
 	shutdown Shutdown
-	wPool    *WorkerPool
+	wPool    *workerPool
 
 	eventMutex   sync.Mutex
 	eventChan    chan Event
@@ -101,7 +101,7 @@ func NewChief() Chief {
 	c := &chief{
 		eventChan:        make(chan Event),
 		forceStopTimeout: DefaultForceStopTimeout,
-		wPool: &WorkerPool{
+		wPool: &workerPool{
 			mutex:   new(sync.RWMutex),
 			workers: make(map[WorkerName]*workerRO),
 		},
@@ -112,7 +112,7 @@ func NewChief() Chief {
 }
 
 // EnableServiceSocket initializes `net.Socket` server for internal management purposes.
-// By default includes two actions:
+// By default, includes two actions:
 // 	- "status" is a command useful for health-checks, because it returns status of all workers;
 // 	- "ping" is a simple command that returns the "pong" message.
 // The user can provide his own list of actions with handler closures.
@@ -120,7 +120,7 @@ func (c *chief) EnableServiceSocket(app AppInfo, actions ...socket.Action) {
 	statusAction := socket.Action{Name: StatusAction,
 		Handler: func(_ socket.Request) socket.Response {
 			return socket.NewResponse(socket.StatusOk,
-				StateInfo{App: app, Workers: c.wPool.GetWorkersStates()}, "")
+				StateInfo{App: app, Workers: c.wPool.getWorkersStates()}, "")
 		},
 	}
 
@@ -136,7 +136,7 @@ func (c *chief) EnableServiceSocket(app AppInfo, actions ...socket.Action) {
 
 // AddWorker registers the worker in the pool.
 func (c *chief) AddWorker(name WorkerName, worker Worker) {
-	if err := c.wPool.SetWorker(name, worker); err != nil {
+	if err := c.wPool.setWorker(name, worker); err != nil {
 		c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
 	}
 }
@@ -144,7 +144,7 @@ func (c *chief) AddWorker(name WorkerName, worker Worker) {
 // AddWorkers registers the list of workers in the pool.
 func (c *chief) AddWorkers(workers map[WorkerName]Worker) {
 	for name, worker := range workers {
-		if err := c.wPool.SetWorker(name, worker); err != nil {
+		if err := c.wPool.setWorker(name, worker); err != nil {
 			c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
 		}
 	}
@@ -152,7 +152,7 @@ func (c *chief) AddWorkers(workers map[WorkerName]Worker) {
 
 // GetWorkersStates returns the current state of all registered workers.
 func (c *chief) GetWorkersStates() map[WorkerName]sam.State {
-	return c.wPool.GetWorkersStates()
+	return c.wPool.getWorkersStates()
 }
 
 // SetEventHandler adds a callback that processes the `Chief`
@@ -304,7 +304,7 @@ func (c *chief) runPool() error {
 	ctx, cancel := context.WithCancel(c.ctx)
 
 	for name := range c.wPool.workers {
-		if err := c.wPool.InitWorker(name); err != nil {
+		if err := c.wPool.initWorker(name); err != nil {
 			c.eventChan <- ErrorEvent(errors.Wrap(err, "failed to init worker").Error()).SetWorker(name)
 			continue
 		}
@@ -346,12 +346,12 @@ func (c *chief) runWorker(ctx Context, name WorkerName, doneCall func()) {
 		defer c.recover(name)
 	}
 
-	err := c.wPool.RunWorkerExec(ctx, name)
+	err := c.wPool.runWorkerExec(ctx, name)
 	if err != nil {
 		c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
 	}
 
-	err = c.wPool.StopWorker(name)
+	err = c.wPool.stopWorker(name)
 	if err != nil {
 		c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
 	}

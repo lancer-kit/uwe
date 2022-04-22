@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-
-	"github.com/pkg/errors"
 )
 
 // Server is a handler that opens a `net.Socket`
@@ -63,12 +61,12 @@ func (sw *Server) Serve(ctx context.Context) (err error) {
 	var lc net.ListenConfig
 	localSocket, err := lc.Listen(ctx, "unix", sw.socketName)
 	if err != nil {
-		return errors.Wrap(err, "unable to create unix domain socket")
+		return fmt.Errorf("unable to create unix domain socket: %s ", err)
 	}
 
 	// // Set the permissions 700 on this
 	if err = os.Chmod(sw.socketName, 0700); err != nil {
-		return errors.Wrap(err, "unable to change the permissions for the socket")
+		return fmt.Errorf("unable to change the permissions for the socket: %s ", err)
 	}
 
 	conns := make(chan net.Conn)
@@ -78,7 +76,7 @@ func (sw *Server) Serve(ctx context.Context) (err error) {
 			var socketConn net.Conn
 			socketConn, err = localSocket.Accept()
 			if err != nil {
-				sw.errors <- errors.Wrap(err, "accept failed")
+				sw.errors <- fmt.Errorf("accept failed: %s", err)
 				continue
 			}
 			conns <- socketConn
@@ -91,7 +89,7 @@ func (sw *Server) Serve(ctx context.Context) (err error) {
 		case <-ctx.Done():
 			err = localSocket.Close()
 			if err != nil {
-				sw.errors <- errors.Wrap(err, "accept failed")
+				sw.errors <- fmt.Errorf("accept failed: %s", err)
 				return nil
 			}
 
@@ -103,7 +101,7 @@ func (sw *Server) Serve(ctx context.Context) (err error) {
 		case socketConn := <-conns:
 			err = sw.processSockRequest(socketConn)
 			if err != nil {
-				sw.errors <- errors.Wrap(err, "process failed")
+				sw.errors <- fmt.Errorf("process failed: %s", err)
 				continue
 			}
 		}
@@ -135,7 +133,7 @@ func (sw *Server) processSockRequest(conn net.Conn) (err error) {
 	var in Request
 	err = decode.Decode(&in)
 	if err != nil {
-		return errors.Wrap(err, "unable to decode input")
+		return fmt.Errorf("unable to decode input: %s", err)
 	}
 
 	handler, ok := sw.handlers[in.Action]
@@ -148,7 +146,7 @@ func (sw *Server) processSockRequest(conn net.Conn) (err error) {
 	// Send response back to the socket request
 	err = encode.Encode(result)
 	if err != nil {
-		return errors.Wrap(err, "unable to encode input")
+		return fmt.Errorf("unable to encode input: %s", err)
 	}
 
 	return nil
@@ -160,7 +158,7 @@ func (sw *Server) removeSocket() error {
 		return nil
 	}
 	if err := os.Remove(sw.socketName); err != nil {
-		return errors.Wrap(err, "unable to remove the socket")
+		return fmt.Errorf("unable to remove the socket: %s", err)
 	}
 
 	return nil

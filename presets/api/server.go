@@ -13,11 +13,14 @@ import (
 const forceStopTimeout = 5 * time.Second
 
 // Config is a parameters for `http.Server`.
+// APIRequestTimeout and ReadHeaderTimeout time.Duration in Seconds.
 type Config struct {
-	Host              string `json:"host" yaml:"host" toml:"host"`
-	Port              int    `json:"port" yaml:"port" toml:"port"`
-	EnableCORS        bool   `json:"enable_cors" yaml:"enable_cors" toml:"enable_cors"`
-	APIRequestTimeout int    `json:"api_request_timeout" yaml:"api_request_timeout" toml:"api_request_timeout"` // nolint:golint
+	Host       string `json:"host" yaml:"host" toml:"host"`
+	Port       int    `json:"port" yaml:"port" toml:"port"`
+	EnableCORS bool   `json:"enable_cors" yaml:"enable_cors" toml:"enable_cors"`
+	// nolint:lll
+	APIRequestTimeout int `json:"api_request_timeout" yaml:"api_request_timeout" toml:"api_request_timeout"`
+	ReadHeaderTimeout int `json:"read_header_timeout" yaml:"read_header_timeout" toml:"read_header_timeout"`
 }
 
 // Validate - Validate config required fields
@@ -40,7 +43,8 @@ func (c *Config) TCPAddr() string {
 // Server requires configuration and filled `http.Handler`.
 // The HTTP server will work properly and will be correctly disconnected upon a signal from Supervisor (Chief).
 // Warning: this Server does not process SSL/TLS certificates on its own.
-// 		To start an HTTPS server, look for a specific worker.
+//
+//	To start an HTTPS server, look for a specific worker.
 type Server struct {
 	config Config
 	router http.Handler
@@ -59,9 +63,14 @@ func (s *Server) Init() error { return nil }
 
 // Run starts serving the passed `http.Handler` with HTTP server.
 func (s *Server) Run(ctx uwe.Context) error {
+	readHeaderTimeout := time.Minute
+	if s.config.ReadHeaderTimeout > 0 {
+		readHeaderTimeout = time.Duration(s.config.ReadHeaderTimeout) * time.Second
+	}
 	server := &http.Server{
-		Addr:    s.config.TCPAddr(),
-		Handler: s.router,
+		Addr:              s.config.TCPAddr(),
+		Handler:           s.router,
+		ReadHeaderTimeout: readHeaderTimeout,
 	}
 
 	serverFailed := make(chan error)

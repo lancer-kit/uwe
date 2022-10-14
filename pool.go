@@ -32,6 +32,7 @@ func (p *workerPool) setWorker(name WorkerName, worker Worker, opts []WorkerOpts
 	}
 
 	for _, opt := range opts {
+		// nolint: gocritic
 		switch o := opt.(type) {
 		case RestartOption:
 			p.workers[name].restartMode = o
@@ -63,16 +64,16 @@ func (p *workerPool) workersList() []WorkerName {
 func (p *workerPool) runWorkerExec(ctx Context, name WorkerName) (err error) {
 	w := p.getWorker(name)
 
-INIT_POINT:
-	if err := p.setState(name, WStateInitialized); err != nil {
+InitPoint:
+	if e := p.setState(name, WStateInitialized); e != nil {
 		return err
 	}
 
-	if err := w.worker.Init(); err != nil {
-		return err
+	if e := w.worker.Init(); e != nil {
+		return e
 	}
 
-RUN_POINT:
+RunPoint:
 	if err = p.startWorker(name); err != nil {
 		return err
 	}
@@ -109,9 +110,9 @@ RUN_POINT:
 		}
 
 		if w.restartMode.Is(RestartWithReinit) {
-			goto INIT_POINT
+			goto InitPoint
 		} else {
-			goto RUN_POINT
+			goto RunPoint
 		}
 	}
 

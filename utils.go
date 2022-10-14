@@ -2,7 +2,6 @@ package uwe
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"reflect"
 )
@@ -51,6 +50,6 @@ func STDLogEventHandler() EventHandler {
 			level = "WARN"
 		}
 
-		log.Println(fmt.Sprintf("%s: %s %s", level, event.Message, event.FormatFields()))
+		log.Printf("%s: %s %s\n", level, event.Message, event.FormatFields())
 	}
 }

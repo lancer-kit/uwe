@@ -9,7 +9,9 @@
 //
 // 1. `Init()` - method used to initialize some state of the worker that required interaction with outer context,
 // for example, initialize some connectors. In many cases this method is optional, so it can be implemented as empty:
-//  `func (*W) Init() error { return nil }`.
+//
+//	`func (*W) Init() error { return nil }`.
+//
 // 2. `Run(ctx Context) error` - starts the `Worker` instance execution. The context will provide a signal
 // when a worker must stop through the `ctx.Done()`.
 //
@@ -17,8 +19,10 @@
 //
 // ```text
 // (*) -> [New] -> [Initialized] -> [Run] -> [Stopped]
-//          |             |           |
-//          |             |           ↓
-//          |-------------|------> [Failed]
+//
+//	|             |           |
+//	|             |           ↓
+//	|-------------|------> [Failed]
+//
 // ```
 package uwe

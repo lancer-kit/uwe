@@ -49,7 +49,7 @@ func (d *dummy) Run(ctx Context) error {
 			if msg == nil {
 				continue
 			}
-			log.Printf("Recieved new message: sender(%s) kind(%s) data(%v)\n",
+			log.Printf("Received new message: sender(%s) kind(%d) data(%v)\n",
 				msg.Sender, msg.Kind, msg.Data)
 		case <-ctx.Done():
 			// close all connections, channels and finalise state if needed

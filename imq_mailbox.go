@@ -132,7 +132,7 @@ type NopMailbox struct{}
 func (*NopMailbox) Send(WorkerName, interface{})                       {}
 func (*NopMailbox) SendWithKind(WorkerName, MessageKind, interface{})  {}
 func (*NopMailbox) SendToMany(MessageKind, interface{}, ...WorkerName) {}
-func (self *NopMailbox) SelfInit(WorkerName) Mailbox                   { return self }
+func (m *NopMailbox) SelfInit(WorkerName) Mailbox                      { return m }
 func (*NopMailbox) Messages() <-chan *Message {
 	c := make(chan *Message)
 

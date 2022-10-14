@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/lancer-kit/sam"
+	"github.com/sheb-gregor/sam"
 )
 
 // workerPool provides a mechanism to combine many workers into the one pool, manage them, and run.

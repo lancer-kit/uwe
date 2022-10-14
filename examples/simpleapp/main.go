@@ -17,18 +17,17 @@ func main() {
 	const (
 		workerAPI  = "api-server"
 		workerBack = "background_worker"
-		workerIMQ  = "imq"
 	)
 	server := api.NewServer(cfg, router())
 
 	chief := uwe.NewChief()
 	chief.AddWorker(
 		workerAPI, server,
-		uwe.RestartOnFail, uwe.DependsOn(workerIMQ, workerBack),
+		uwe.RestartOnFail,
 	)
 	chief.AddWorker(
 		workerBack, server,
-		uwe.RestartOnFail, uwe.DependsOn(workerIMQ),
+		uwe.RestartOnFail,
 	)
 	chief.AddWorker(
 		workerBack, server,

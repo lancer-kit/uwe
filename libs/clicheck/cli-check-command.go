@@ -8,8 +8,9 @@ import (
 	"github.com/urfave/cli"
 )
 
-// CliCheckCommand returns `cli.Command`, which allows you to check the health of a running instance **Application**
-// with `ServiceSocket` enabled using `(Chief) .EnableServiceSocket(...)`
+// CliCheckCommand returns `cli.Command`,
+// which allows you to check the health of a running instance **Application**
+// with `ServiceSocket` enabled using `(Chief).EnableServiceSocket(...)`
 func CliCheckCommand(app uwe.AppInfo, workerListProvider func(c *cli.Context) []uwe.WorkerName) cli.Command {
 	const detailsFlag = "details"
 	return cli.Command{

@@ -1,10 +1,4 @@
-github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/go-chi/chi v1.5.4 h1:QHdzF2szwjqVV4wmByUnTcsbIg7UGaQ0tPF2t5GcAIs=
 github.com/go-chi/chi v1.5.4/go.mod h1:uaf8YgoFazUOkPBG7fxPftUylNumIev9awIWOENIuEg=
-github.com/lancer-kit/sam v0.0.0-20190828205034-ab78e42fc7ce h1:GB+TZbq3MPukFjt6XtzWsNEqF/27lGkOHZeRyLGUkZg=
-github.com/lancer-kit/sam v0.0.0-20190828205034-ab78e42fc7ce/go.mod h1:dJSKzw9vZqK0nwXplFhVC97C0/TRg7soUQzCd5GtloY=
-github.com/pkg/errors v0.8.1 h1:iURUrRGxPUNPdy5/HRSm+Yj6okJ6UtLINN0Q9M4+h3I=
-github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
-github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
-github.com/stretchr/testify v1.4.0 h1:2E4SXV/wtOkTonXsotYi4li6zVWxYlZuYNCXe9XRJyk=
-gopkg.in/yaml.v2 v2.2.2 h1:ZCJp+EgiOT7lHqUV2J862kp8Qj64Jo6az82+3Td9dZw=
+github.com/sheb-gregor/sam v1.0.0 h1:CwLFXleECGu5Pygxq5jMVMKIBOGfj2xhk8yTTRoeAtU=
+github.com/sheb-gregor/sam v1.0.0/go.mod h1:66f+us+zzRxNpnEWp2i1ASJNcUqPdpuTHDdMLB57nwo=

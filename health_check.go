@@ -3,7 +3,7 @@ package uwe
 import (
 	"encoding/json"
 
-	"github.com/lancer-kit/sam"
+	"github.com/sheb-gregor/sam"
 )
 
 const (

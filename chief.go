@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lancer-kit/sam"
 	"github.com/lancer-kit/uwe/v3/socket"
+	"github.com/sheb-gregor/sam"
 )
 
 // Chief is a supervisor that can be placed at the top  of the go app's execution stack,
@@ -125,8 +125,9 @@ func NewChief() Chief {
 
 // EnableServiceSocket initializes `net.Socket` server for internal management purposes.
 // By default, includes two actions:
-// 	- "status" is a command useful for health-checks, because it returns status of all workers;
-// 	- "ping" is a simple command that returns the "pong" message.
+//   - "status" is a command useful for health-checks, because it returns status of all workers;
+//   - "ping" is a simple command that returns the "pong" message.
+//
 // The user can provide his own list of actions with handler closures.
 func (c *chief) EnableServiceSocket(app AppInfo, actions ...socket.Action) Chief {
 	statusAction := socket.Action{Name: StatusAction,

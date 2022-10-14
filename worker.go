@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lancer-kit/sam"
+	"github.com/sheb-gregor/sam"
 )
 
 type WorkerName string
@@ -43,28 +43,25 @@ const (
 // newWorkerSM returns filled state machine of the worker lifecycle
 //
 // (*) -> [New] -> [Initialized] -> [Run] -> [Stopped]
-//          |             |           |
-//          |             |           ↓
-//          |--------------------> [Failed]
-//          						(from [Failed] state can get back
-//          						 to [Initialized] or to [Run])
 //
+//	|             |           |
+//	|             |           ↓
+//	|--------------------> [Failed]
+//							(from [Failed] state can get back
+//							 to [Initialized] or to [Run])
 func newWorkerSM() (sam.StateMachine, error) {
-	sm := sam.NewStateMachine()
-	s := &sm
-
-	workerSM, err := s.
+	workerSM, err := sam.NewStateMachine().
 		AddTransitions(WStateNew, WStateInitialized, WStateFailed).
 		AddTransitions(WStateInitialized, WStateRun, WStateFailed).
 		AddTransitions(WStateRun, WStateStopped, WStateFailed).
 		AddTransitions(WStateFailed, WStateInitialized, WStateRun).
 		Finalize(WStateStopped)
 	if err != nil || workerSM == nil {
-		return sm, fmt.Errorf("worker state machine init failed: %s", err)
+		return sam.StateMachine{}, fmt.Errorf("worker state machine init failed: %s", err)
 	}
 
 	if err = workerSM.SetState(WStateNew); err != nil {
-		return sm, fmt.Errorf("failed to set state new: %s", err)
+		return sam.StateMachine{}, fmt.Errorf("failed to set state new: %s", err)
 	}
 
 	return workerSM.Clone(), nil

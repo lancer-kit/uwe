@@ -1,12 +1,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/lancer-kit/uwe/v3"
-	"github.com/pkg/errors"
 )
 
 type panicDummy struct {

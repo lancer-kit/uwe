@@ -7,9 +7,6 @@ require (
 	github.com/rs/zerolog v1.26.1
 )
 
-require (
-	github.com/lancer-kit/sam v0.0.0-20190828205034-ab78e42fc7ce // indirect
-	github.com/pkg/errors v0.9.1 // indirect
-)
+require github.com/sheb-gregor/sam v1.0.0 // indirect
 
 replace github.com/lancer-kit/uwe/v3 => ../../

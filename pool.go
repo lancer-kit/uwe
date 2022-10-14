@@ -10,22 +10,12 @@ import (
 
 // workerPool provides a mechanism to combine many workers into the one pool, manage them, and run.
 type workerPool struct {
-	mutex   *sync.RWMutex
+	mutex   sync.RWMutex
 	workers map[WorkerName]*workerRO
 }
 
-// initWorker initializes all present workers.
-func (p *workerPool) initWorker(name WorkerName) error {
-	if err := p.setState(name, WStateInitialized); err != nil {
-		return err
-	}
-
-	w := p.getWorker(name)
-	return w.worker.Init()
-}
-
 // setWorker adds worker into pool.
-func (p *workerPool) setWorker(name WorkerName, worker Worker) error {
+func (p *workerPool) setWorker(name WorkerName, worker Worker, opts []WorkerOpts) error {
 	p.check()
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -41,6 +31,13 @@ func (p *workerPool) setWorker(name WorkerName, worker Worker) error {
 		canceler:     nil,
 	}
 
+	for _, opt := range opts {
+		switch o := opt.(type) {
+		case RestartOption:
+			p.workers[name].restartMode = o
+		}
+	}
+
 	return nil
 }
 
@@ -53,18 +50,81 @@ func (p *workerPool) replaceWorker(name WorkerName, worker Worker) {
 	p.mutex.Unlock()
 }
 
+func (p *workerPool) workersList() []WorkerName {
+	list := make([]WorkerName, 0, len(p.workers))
+	for name := range p.workers {
+		list = append(list, name)
+	}
+
+	return list
+}
+
 // runWorkerExec adds worker into pool.
 func (p *workerPool) runWorkerExec(ctx Context, name WorkerName) (err error) {
+	w := p.getWorker(name)
+
+INIT_POINT:
+	if err := p.setState(name, WStateInitialized); err != nil {
+		return err
+	}
+
+	if err := w.worker.Init(); err != nil {
+		return err
+	}
+
+RUN_POINT:
 	if err = p.startWorker(name); err != nil {
 		return err
 	}
+	var runClosure = func() (panicked bool, e error) {
+		defer func() {
+			r := recover()
+			if r != nil {
+				panicked = true
+				e = fmt.Errorf("%v", e)
+			}
+		}()
 
-	w := p.getWorker(name)
-	if err = w.worker.Run(ctx); err != nil {
+		e = w.worker.Run(ctx)
+		return
+	}
+
+	panicked, err := runClosure()
+	if panicked || err != nil {
+		if e := p.setState(name, WStateFailed); e != nil {
+			return e
+		}
+	}
+
+	switch {
+	case (panicked && !w.restartMode.Is(RestartOnFail)) ||
+		(!panicked && !w.restartMode.Is(RestartOnError)):
 		return err
+
+	case (panicked && w.restartMode.Is(RestartOnFail)) ||
+		(!panicked && w.restartMode.Is(RestartOnError) && err != nil):
+
+		if stopIntiated(ctx) {
+			return err
+		}
+
+		if w.restartMode.Is(RestartWithReinit) {
+			goto INIT_POINT
+		} else {
+			goto RUN_POINT
+		}
 	}
 
 	return nil
+}
+
+func stopIntiated(ctx Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
+	}
 }
 
 // getWorker - get WorkerRO by name

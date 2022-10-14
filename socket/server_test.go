@@ -5,8 +5,6 @@ import (
 	"log"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestServer_Serve(t *testing.T) {
@@ -48,10 +46,20 @@ func TestServer_Serve(t *testing.T) {
 
 	resp, err := client.Send(req)
 	log.Println("Got Response:", resp.Status, string(resp.Data), resp.Error)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
 
-	assert.Equal(t, StatusOk, resp.Status)
-	assert.Equal(t, `"pong"`, string(resp.Data))
+	if resp.Status != StatusOk {
+		t.Errorf("resp.Status != StatusOk; %d != %d", resp.Status, StatusOk)
+		t.FailNow()
+	}
+
+	if string(resp.Data) != `"pong"` {
+		t.Errorf("resp.Data(%s) != \"pong\" ", string(resp.Data))
+		t.FailNow()
+	}
 
 	cancel()
 

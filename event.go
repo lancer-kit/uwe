@@ -1,6 +1,9 @@
 package uwe
 
-import "github.com/pkg/errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // EventLevel ...
 type EventLevel string
@@ -36,6 +39,16 @@ func (e Event) ToError() error {
 		return nil
 	}
 	return errors.New(e.Message)
+}
+
+// FormatFields concatenates fields in string format:
+// "k1=value k2=value "
+func (e Event) FormatFields() string {
+	var out string
+	for k, v := range e.Fields {
+		out += fmt.Sprintf("%s=%v ", k, v)
+	}
+	return out
 }
 
 // SetField add to event some Key/Value.

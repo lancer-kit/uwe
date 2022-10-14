@@ -1,22 +1,19 @@
-package imq
+package uwe
 
 import (
 	"context"
-
-	"github.com/lancer-kit/uwe/v3"
 )
 
-const (
-	TargetBroadcast = "*"
-	TargetSelfInit  = "self-init"
-)
+type IMQBroker interface {
+	DefaultBus() SenderBus
+	AddWorker(name WorkerName) Mailbox
+	Init() error
+	Serve(ctx context.Context)
+}
 
 type Broker struct {
-	ctx        context.Context
-	cancelFunc context.CancelFunc
-
 	defaultChanLen  int
-	workersHub      map[uwe.WorkerName]chan<- *Message
+	workersHub      map[WorkerName]chan<- *Message
 	workersMessages chan *Message
 }
 
@@ -25,29 +22,24 @@ func NewBroker(defaultChanLen int) *Broker {
 		defaultChanLen = 1
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	return &Broker{
-		ctx:             ctx,
-		cancelFunc:      cancel,
-		workersHub:      map[uwe.WorkerName]chan<- *Message{},
+		workersHub:      map[WorkerName]chan<- *Message{},
 		workersMessages: make(chan *Message, defaultChanLen)}
 }
 
 func (hub *Broker) DefaultBus() SenderBus {
-	return NewSenderBus(hub.ctx, hub.workersMessages)
+	return NewSenderBus(hub.workersMessages)
 }
 
-func (hub *Broker) AddWorker(name uwe.WorkerName) EventBus {
+func (hub *Broker) AddWorker(name WorkerName) Mailbox {
 	workerDirectChan := make(chan *Message, hub.defaultChanLen)
 	hub.workersHub[name] = workerDirectChan
-	return NewBus(hub.ctx, name, workerDirectChan, hub.workersMessages)
+	return NewBus(name, workerDirectChan, hub.workersMessages)
 }
 
-func (hub *Broker) Init() error {
-	return nil
-}
+func (hub *Broker) Init() error { return nil }
 
-func (hub *Broker) Run(ctx uwe.Context) error {
+func (hub *Broker) Serve(ctx context.Context) {
 	for {
 		select {
 		case msg := <-hub.workersMessages:
@@ -83,12 +75,17 @@ func (hub *Broker) Run(ctx uwe.Context) error {
 			}
 
 		case <-ctx.Done():
-			hub.cancelFunc()
-			return nil
+			return
 		}
 	}
 }
 
-func sendMsg(bus chan<- *Message, msg Message) {
-	bus <- &msg
-}
+func sendMsg(bus chan<- *Message, msg Message) { bus <- &msg }
+
+// NopBroker is an empty IMQBroker
+type NopBroker struct{}
+
+func (*NopBroker) DefaultBus() SenderBus             { return &NopMailbox{} }
+func (*NopBroker) AddWorker(name WorkerName) Mailbox { return &NopMailbox{} }
+func (*NopBroker) Init() error                       { return nil }
+func (*NopBroker) Serve(ctx context.Context)         {}

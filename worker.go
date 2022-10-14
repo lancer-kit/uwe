@@ -25,8 +25,10 @@ type Worker interface {
 // workerRO worker runtime object, hold worker instance, state and communication chanel
 type workerRO struct {
 	sam.StateMachine
-	worker   Worker
-	canceler context.CancelFunc
+
+	worker      Worker
+	restartMode RestartOption
+	canceler    context.CancelFunc
 }
 
 const (
@@ -43,7 +45,10 @@ const (
 // (*) -> [New] -> [Initialized] -> [Run] -> [Stopped]
 //          |             |           |
 //          |             |           ↓
-//          |-------------|------> [Failed]
+//          |--------------------> [Failed]
+//          						(from [Failed] state can get back
+//          						 to [Initialized] or to [Run])
+//
 func newWorkerSM() (sam.StateMachine, error) {
 	sm := sam.NewStateMachine()
 	s := &sm
@@ -52,6 +57,7 @@ func newWorkerSM() (sam.StateMachine, error) {
 		AddTransitions(WStateNew, WStateInitialized, WStateFailed).
 		AddTransitions(WStateInitialized, WStateRun, WStateFailed).
 		AddTransitions(WStateRun, WStateStopped, WStateFailed).
+		AddTransitions(WStateFailed, WStateInitialized, WStateRun).
 		Finalize(WStateStopped)
 	if err != nil || workerSM == nil {
 		return sm, fmt.Errorf("worker state machine init failed: %s", err)

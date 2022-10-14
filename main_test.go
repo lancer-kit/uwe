@@ -45,6 +45,12 @@ func (d *dummy) Run(ctx Context) error {
 			// define all the processing code here
 			// or move it to a method and make a call here
 			log.Println("do something")
+		case msg := <-ctx.Messages():
+			if msg == nil {
+				continue
+			}
+			log.Printf("Recieved new message: sender(%s) kind(%s) data(%v)\n",
+				msg.Sender, msg.Kind, msg.Data)
 		case <-ctx.Done():
 			// close all connections, channels and finalise state if needed
 			log.Println("good bye")

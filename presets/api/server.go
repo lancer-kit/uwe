@@ -14,10 +14,10 @@ const forceStopTimeout = 5 * time.Second
 
 // Config is a parameters for `http.Server`.
 type Config struct {
-	Host              string `json:"host" yaml:"host"`
-	Port              int    `json:"port" yaml:"port"`
-	EnableCORS        bool   `json:"enable_cors" yaml:"enable_cors"`
-	APIRequestTimeout int    `json:"api_request_timeout" yaml:"api_request_timeout"` // nolint:golint
+	Host              string `json:"host" yaml:"host" toml:"host"`
+	Port              int    `json:"port" yaml:"port" toml:"port"`
+	EnableCORS        bool   `json:"enable_cors" yaml:"enable_cors" toml:"enable_cors"`
+	APIRequestTimeout int    `json:"api_request_timeout" yaml:"api_request_timeout" toml:"api_request_timeout"` // nolint:golint
 }
 
 // Validate - Validate config required fields

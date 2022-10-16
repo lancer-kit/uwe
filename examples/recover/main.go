@@ -23,7 +23,6 @@ func (d panicDummy) Run(ctx uwe.Context) error {
 func main() {
 	chief := uwe.NewChief()
 
-	chief.UseDefaultRecover()
 	chief.SetEventHandler(func(event uwe.Event) {
 		if event.IsFatal() || event.IsError() {
 			fmt.Println(event.ToError())

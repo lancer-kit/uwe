@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"runtime/debug"
 	"sync"
 	"syscall"
 	"time"
@@ -47,13 +46,10 @@ type Chief interface {
 	// SetLocker sets a custom `Locker`, if it is not set,
 	// the default `Locker` will be used, which expects SIGTERM or SIGINT system signals.
 	SetLocker(Locker) Chief
-	// SetRecover sets a custom `recover` that catches panic.
-	SetRecover(Recover) Chief
+
 	// SetShutdown sets `Shutdown` callback.
 	SetShutdown(Shutdown) Chief
-	// UseDefaultRecover sets a standard handler as a `recover`
-	// that catches panic and sends a fatal event to the event channel.
-	UseDefaultRecover() Chief
+
 	// UseCustomIMQBroker sets non-standard implementation
 	// of the IMQBroker to replace default one.
 	UseCustomIMQBroker(IMQBroker) Chief
@@ -96,14 +92,16 @@ type chief struct {
 
 	forceStopTimeout time.Duration
 
-	locker   Locker
-	recover  Recover
+	locker Locker
+
+	// recover  Recover
 	shutdown Shutdown
 	wPool    *workerPool
 
-	eventMutex   sync.Mutex
-	eventChan    chan Event
-	eventHandler EventHandler
+	eventMutexLocked bool
+	eventMutex       sync.Mutex
+	eventChan        chan Event
+	eventHandler     EventHandler
 
 	broker IMQBroker
 	sw     *socket.Server
@@ -182,40 +180,6 @@ func (c *chief) SetLocker(locker Locker) Chief {
 	return c
 }
 
-// SetRecover sets a custom `recover` that catches panic.
-func (c *chief) SetRecover(recover Recover) Chief {
-	c.recover = recover
-	return c
-}
-
-// UseDefaultRecover sets a standard handler as a `recover`
-// that catches panic and sends a fatal event to the event channel.
-func (c *chief) UseDefaultRecover() Chief {
-	c.recover = func(name WorkerName) {
-		r := recover()
-		if r == nil {
-			return
-		}
-
-		err, ok := r.(error)
-		if !ok {
-			err = fmt.Errorf("%v", r)
-		}
-
-		c.eventChan <- Event{
-			Level:   LvlFatal,
-			Worker:  name,
-			Message: "caught panic",
-			Fields: map[string]interface{}{
-				"worker": name,
-				"error":  err.Error(),
-				"stack":  string(debug.Stack()),
-			},
-		}
-	}
-	return c
-}
-
 func (c *chief) UseCustomIMQBroker(broker IMQBroker) Chief {
 	c.broker = broker
 	return c
@@ -243,7 +207,7 @@ func (c *chief) Event() <-chan Event {
 	if c.eventHandler != nil {
 		return nil
 	}
-
+	c.eventMutexLocked = true
 	c.eventMutex.Lock()
 	return c.eventChan
 }
@@ -273,8 +237,10 @@ func (c *chief) Run() {
 // and executes `Shutdown` callback.
 func (c *chief) Shutdown() {
 	c.cancel()
+	if c.eventMutexLocked {
+		c.eventMutex.Unlock()
+	}
 
-	c.eventMutex.Unlock()
 	if c.shutdown != nil {
 		c.shutdown()
 	}
@@ -310,6 +276,7 @@ func (c *chief) run() {
 }
 
 func (c *chief) handleEvents(stop <-chan struct{}) {
+	c.eventMutexLocked = true
 	c.eventMutex.Lock()
 
 	for {
@@ -378,16 +345,8 @@ func (c *chief) runPool() error {
 
 func (c *chief) runWorker(ctx Context, name WorkerName, doneCall func()) {
 	defer doneCall()
-	if c.recover != nil {
-		defer c.recover(name)
-	}
 
-	err := c.wPool.runWorkerExec(ctx, name)
-	if err != nil {
-		c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
-	}
-
-	err = c.wPool.stopWorker(name)
+	err := c.wPool.runWorkerExec(ctx, c.eventChan, name)
 	if err != nil {
 		c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
 	}

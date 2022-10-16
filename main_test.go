@@ -11,8 +11,6 @@ func Example() {
 	// will add workers into the pool
 	chief.AddWorker("dummy", NewDummy())
 
-	// will enable recover of internal panics
-	chief.UseDefaultRecover()
 	// pass handler for internal events like errors, panics, warning, etc.
 	// you can log it with you favorite logger (ex Logrus, Zap, etc)
 	chief.SetEventHandler(STDLogEventHandler())

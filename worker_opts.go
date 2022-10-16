@@ -13,8 +13,15 @@ func (opt RestartOption) Is(mode RestartOption) bool {
 func (RestartOption) thisIsOption() {}
 
 const (
-	NoRestart RestartOption = 1 << iota
-	RestartOnFail
+	RestartOnFail RestartOption = 1 << iota
 	RestartOnError
-	RestartWithReinit
+	RestartWithReInit
+
+	NoRestart     RestartOption = -1
+	StopAppOnFail RestartOption = -2
+)
+
+const (
+	Restart          = RestartOnFail | RestartOnError
+	RestartAndReInit = RestartOnFail | RestartOnError | RestartWithReInit
 )

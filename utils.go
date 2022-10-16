@@ -50,6 +50,11 @@ func STDLogEventHandler() EventHandler {
 			level = "WARN"
 		}
 
+		if event.Fields == nil {
+			event.Fields = map[string]interface{}{}
+		}
+		event.Fields["worker"] = event.Worker
+
 		log.Printf("%s: %s %s\n", level, event.Message, event.FormatFields())
 	}
 }

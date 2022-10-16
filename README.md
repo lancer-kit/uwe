@@ -51,9 +51,7 @@ func main() {
 	// will add workers into the pool
 	chief.AddWorker("app-server", api.NewServer(apiCfg, getRouter()))
 	chief.AddWorker("dummy", NewDummy())
-
-	// will enable recover of internal panics
-	chief.UseDefaultRecover()
+	
 	// pass handler for internal events like errors, panics, warning, etc.
 	// you can log it with you favorite logger (ex Logrus, Zap, etc)
 	chief.SetEventHandler(uwe.STDLogEventHandler())
@@ -169,7 +167,6 @@ func main() {
 
 	// initialize new instance of Chief
 	chief := uwe.NewChief()
-	chief.UseDefaultRecover()
 	chief.SetEventHandler(uwe.STDLogEventHandler())
 
 	// instead default can be used any another compatible router
@@ -209,7 +206,6 @@ func main() {
 
 	// initialize new instance of Chief
 	chief := uwe.NewChief()
-	chief.UseDefaultRecover()
 	chief.SetEventHandler(uwe.STDLogEventHandler())
 
 	// will add workers into the pool
@@ -254,7 +250,6 @@ func main() {
 
 	// initialize new instance of Chief
 	chief := uwe.NewChief()
-	chief.UseDefaultRecover()
 	chief.SetEventHandler(uwe.STDLogEventHandler())
 
 	// will add workers into the pool

@@ -50,7 +50,6 @@ func ExampleWorkerFunc_Run() {
 
 	// initialize new instance of Chief
 	chief := uwe.NewChief()
-	chief.UseDefaultRecover()
 	chief.SetEventHandler(uwe.STDLogEventHandler())
 
 	// will add workers into the pool

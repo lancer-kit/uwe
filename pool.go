@@ -3,6 +3,7 @@ package uwe
 import (
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"sync"
 
 	"github.com/sheb-gregor/sam"
@@ -16,7 +17,6 @@ type workerPool struct {
 
 // setWorker adds worker into pool.
 func (p *workerPool) setWorker(name WorkerName, worker Worker, opts []WorkerOpts) error {
-	p.check()
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
@@ -35,20 +35,15 @@ func (p *workerPool) setWorker(name WorkerName, worker Worker, opts []WorkerOpts
 		// nolint: gocritic
 		switch o := opt.(type) {
 		case RestartOption:
-			p.workers[name].restartMode = o
+			p.workers[name].restartMode |= o
 		}
 	}
 
+	if p.workers[name].restartMode == 0 {
+		p.workers[name].restartMode = NoRestart
+	}
+
 	return nil
-}
-
-// replaceWorker replaces the worker with `name` by new `worker`.
-func (p *workerPool) replaceWorker(name WorkerName, worker Worker) {
-	p.check()
-
-	p.mutex.Lock()
-	p.workers[name].worker = worker
-	p.mutex.Unlock()
 }
 
 func (p *workerPool) workersList() []WorkerName {
@@ -61,43 +56,98 @@ func (p *workerPool) workersList() []WorkerName {
 }
 
 // runWorkerExec adds worker into pool.
-func (p *workerPool) runWorkerExec(ctx Context, name WorkerName) (err error) {
+func (p *workerPool) runWorkerExec(ctx Context, eventChan chan<- Event, name WorkerName) error {
 	w := p.getWorker(name)
 
 InitPoint:
-	if e := p.setState(name, WStateInitialized); e != nil {
+	if err := p.setState(name, WStateInitialized); err != nil {
 		return err
 	}
 
-	if e := w.worker.Init(); e != nil {
-		return e
+	if err := w.worker.Init(); err != nil {
+		eventChan <- Event{
+			Level: LvlFatal, Worker: name,
+			Message: "Worker can not be initialized due to an error",
+			Fields: map[string]interface{}{
+				"worker": name,
+				"error":  err.Error(),
+			},
+		}
+
+		if w.restartMode == StopAppOnFail {
+			panic(fmt.Errorf("execution cannot be continued due to a failed worker(%s)", name))
+		}
+
+		return err
 	}
 
 RunPoint:
-	if err = p.startWorker(name); err != nil {
+	if err := p.startWorker(name); err != nil {
 		return err
 	}
+
 	var runClosure = func() (panicked bool, e error) {
 		defer func() {
 			r := recover()
-			if r != nil {
-				panicked = true
-				e = fmt.Errorf("%v", e)
+			if r == nil {
+				return
+			}
+
+			var ok bool
+
+			panicked = true
+			e, ok = r.(error)
+			if !ok {
+				e = fmt.Errorf("%v", r)
+			}
+
+			eventChan <- Event{
+				Level: LvlError, Worker: name,
+				Message: "Worker failed with panic",
+				Fields: map[string]interface{}{
+					"worker": name,
+					"error":  e.Error(),
+					"stack":  string(debug.Stack()),
+				},
 			}
 		}()
 
 		e = w.worker.Run(ctx)
+		if e != nil {
+			eventChan <- Event{
+				Level: LvlError, Worker: name,
+				Message: "Worker ended execution with error",
+				Fields: map[string]interface{}{
+					"worker": name, "error": e.Error()},
+			}
+		}
 		return
 	}
 
+	eventChan <- Event{
+		Level: LvlInfo, Worker: name,
+		Message: "Run worker",
+		Fields:  map[string]interface{}{"worker": name},
+	}
+
 	panicked, err := runClosure()
-	if panicked || err != nil {
-		if e := p.setState(name, WStateFailed); e != nil {
-			return e
+	if !panicked && err == nil {
+		eventChan <- Event{
+			Level: LvlInfo, Worker: name,
+			Message: "Worker ended execution",
+			Fields:  map[string]interface{}{"worker": name},
 		}
+		return p.stopWorker(name)
+	}
+
+	if e := p.failWorker(name); e != nil {
+		return e
 	}
 
 	switch {
+	case w.restartMode == StopAppOnFail:
+		panic(fmt.Errorf("execution cannot be continued due to a failed worker(%s)", name))
+
 	case (panicked && !w.restartMode.Is(RestartOnFail)) ||
 		(!panicked && !w.restartMode.Is(RestartOnError)):
 		return err
@@ -105,13 +155,24 @@ RunPoint:
 	case (panicked && w.restartMode.Is(RestartOnFail)) ||
 		(!panicked && w.restartMode.Is(RestartOnError) && err != nil):
 
-		if stopIntiated(ctx) {
+		if stopInitiated(ctx) {
 			return err
 		}
 
-		if w.restartMode.Is(RestartWithReinit) {
+		if w.restartMode.Is(RestartWithReInit) {
+			// todo: log -- init worker again
+			eventChan <- Event{
+				Level: LvlInfo, Worker: name,
+				Message: "Worker will be re-initialized and restarted",
+				Fields:  map[string]interface{}{"worker": name},
+			}
 			goto InitPoint
 		} else {
+			eventChan <- Event{
+				Level: LvlInfo, Worker: name,
+				Message: "Worker will be restarted",
+				Fields:  map[string]interface{}{"worker": name},
+			}
 			goto RunPoint
 		}
 	}
@@ -119,7 +180,7 @@ RunPoint:
 	return nil
 }
 
-func stopIntiated(ctx Context) bool {
+func stopInitiated(ctx Context) bool {
 	select {
 	case <-ctx.Done():
 		return true
@@ -151,23 +212,6 @@ func (p *workerPool) getWorkersStates() map[WorkerName]sam.State {
 	return r
 }
 
-// getState returns current state for workers with the specified `name`.
-func (p *workerPool) getState(name WorkerName) sam.State {
-	p.mutex.RLock()
-	defer p.mutex.RUnlock()
-	if wk, ok := p.workers[name]; ok {
-		return wk.State()
-	}
-
-	return WStateNotExists
-}
-
-// isRun checks is active worker with passed `name`.
-func (p *workerPool) isRun(name WorkerName) bool {
-	state := p.getState(name)
-	return state == WStateRun
-}
-
 // startWorker sets state `WorkerEnabled` for workers with the specified `name`.
 func (p *workerPool) startWorker(name WorkerName) error {
 	return p.setState(name, WStateRun)
@@ -185,8 +229,6 @@ func (p *workerPool) failWorker(name WorkerName) error {
 
 // setState updates state of specified worker.
 func (p *workerPool) setState(name WorkerName, state sam.State) error {
-	p.check()
-
 	p.mutex.Lock()
 	_, ok := p.workers[name]
 	if !ok {
@@ -195,15 +237,8 @@ func (p *workerPool) setState(name WorkerName, state sam.State) error {
 
 	err := p.workers[name].GoTo(state)
 	p.mutex.Unlock()
-	return fmt.Errorf("%s: %s", string(name), err)
-}
-
-func (p *workerPool) check() {
-	p.mutex.Lock()
-
-	if p.workers == nil {
-		p.workers = make(map[WorkerName]*workerRO)
+	if err != nil {
+		return fmt.Errorf("%s: %w", string(name), err)
 	}
-
-	p.mutex.Unlock()
+	return nil
 }

@@ -1,4 +1,4 @@
-module github.com/lancer-kit/uwe/libs/zerolog-hook
+module github.com/lancer-kit/uwe/libs/zerologhook
 
 go 1.17
 

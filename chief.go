@@ -46,10 +46,12 @@ type Chief interface {
 	// SetLocker sets a custom `Locker`, if it is not set,
 	// the default `Locker` will be used, which expects SIGTERM or SIGINT system signals.
 	SetLocker(Locker) Chief
-
 	// SetShutdown sets `Shutdown` callback.
 	SetShutdown(Shutdown) Chief
-
+	// SetForceStopTimeout replaces the `DefaultForceStopTimeout`.
+	// ForceStopTimeout is the duration before
+	// the worker will be killed if it wouldn't finish Run after the stop signal.
+	SetForceStopTimeout(time.Duration) Chief
 	// UseCustomIMQBroker sets non-standard implementation
 	// of the IMQBroker to replace default one.
 	UseCustomIMQBroker(IMQBroker) Chief
@@ -91,12 +93,9 @@ type chief struct {
 	cancel context.CancelFunc
 
 	forceStopTimeout time.Duration
-
-	locker Locker
-
-	// recover  Recover
-	shutdown Shutdown
-	wPool    *workerPool
+	locker           Locker
+	shutdown         Shutdown
+	wPool            *workerPool
 
 	eventMutexLocked bool
 	eventMutex       sync.Mutex

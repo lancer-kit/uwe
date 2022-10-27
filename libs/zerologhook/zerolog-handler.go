@@ -1,4 +1,4 @@
-package zerolog_hook
+package zerologhook
 
 import (
 	"github.com/lancer-kit/uwe/v3"
@@ -18,6 +18,12 @@ func ChiefHandler(log zerolog.Logger) func(event uwe.Event) {
 			level = zerolog.WarnLevel
 		}
 		l := log.WithLevel(level)
+
+		if event.Fields == nil {
+			event.Fields = map[string]interface{}{}
+		}
+		event.Fields["worker"] = event.Worker
+
 		for s, i := range event.Fields {
 			l = l.Interface(s, i)
 		}

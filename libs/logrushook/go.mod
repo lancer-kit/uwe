@@ -1,4 +1,4 @@
-module github.com/lancer-kit/uwe/libs/logrus-hook
+module github.com/lancer-kit/uwe/libs/logrushook
 
 go 1.17
 

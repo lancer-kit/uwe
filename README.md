@@ -49,8 +49,8 @@ func main() {
 	// initialize new instance of Chief
 	chief := uwe.NewChief()
 	// will add workers into the pool
-	chief.AddWorker("app-server", api.NewServer(apiCfg, getRouter()))
-	chief.AddWorker("dummy", NewDummy())
+	chief.AddWorker("app-server", api.NewServer(apiCfg, getRouter()), uwe.Restart)
+	chief.AddWorker("dummy", NewDummy(), uwe.Restart)
 	
 	// pass handler for internal events like errors, panics, warning, etc.
 	// you can log it with you favorite logger (ex Logrus, Zap, etc)
@@ -149,35 +149,43 @@ The HTTP server will work properly and will be correctly disconnected upon a sig
 package main
 
 import (
-	"fmt"
-	"log"
-	"net/http"
+   "fmt"
+   "net/http"
+   "time"
 
-	"github.com/lancer-kit/uwe/v3"
+   "github.com/lancer-kit/uwe/v3"
+   "github.com/lancer-kit/uwe/v3/presets/api"
 )
 
 func main() {
-	// fill configurations for the predefined worker that start an HTTP server
-	apiCfg := Config{
-		Host:              "0.0.0.0",
-		Port:              8080,
-		EnableCORS:        false,
-		ApiRequestTimeout: 0,
-	}
+   // fill configurations for the predefined worker that start an HTTP server
+   apiCfg := api.Config{
+      Host:              "0.0.0.0",
+      Port:              8080,
+      EnableCORS:        false,
+      ApiRequestTimeout: 45 * time.Second,
+      ReadHeaderTimeout: 45 * time.Second,
+   }
 
-	// initialize new instance of Chief
-	chief := uwe.NewChief()
-	chief.SetEventHandler(uwe.STDLogEventHandler())
+   // instead default can be used any another compatible router
+   mux := http.NewServeMux()
+   mux.HandleFunc("/hello/uwe", func(w http.ResponseWriter, r *http.Request) {
+      _, _ = fmt.Fprintln(w, "hello world")
+   })
 
-	// instead default can be used any another compatible router
-	mux := http.NewServeMux()
-	mux.HandleFunc("/hello/uwe", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = fmt.Fprintln(w, "hello world")
-	})
 
-	chief.AddWorker("app-server", NewServer(apiCfg, mux))
-
-	chief.Run()
+   // initialize new instance of Chief
+   uwe.NewChief().
+	   SetEventHandler(uwe.STDLogEventHandler()).
+	   AddWorker("app-server", api.NewServer(apiCfg, mux)).
+	   Run()
+   
+   // or 
+   
+   chief  := uwe.NewChief()
+   chief.SetEventHandler(uwe.STDLogEventHandler())
+   chief.AddWorker("app-server", api.NewServer(apiCfg, mux))
+   chief.Run()
 }
 ```
 
@@ -253,7 +261,7 @@ func main() {
 	chief.SetEventHandler(uwe.STDLogEventHandler())
 
 	// will add workers into the pool
-	chief.AddWorker("anon-func", WorkerFunc(anonFuncWorker))
+	chief.AddWorker("anon-func", presets.WorkerFunc(anonFuncWorker))
 
 	chief.Run()
 }

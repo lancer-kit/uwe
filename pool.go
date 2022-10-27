@@ -68,14 +68,13 @@ InitPoint:
 		eventChan <- Event{
 			Level: LvlFatal, Worker: name,
 			Message: "Worker can not be initialized due to an error",
-			Fields: map[string]interface{}{
-				"worker": name,
-				"error":  err.Error(),
-			},
+			Fields:  map[string]interface{}{"error": err.Error()},
 		}
 
 		if w.restartMode == StopAppOnFail {
-			panic(fmt.Errorf("execution cannot be continued due to a failed worker(%s)", name))
+			msg := fmt.Sprintf("execution cannot be continued due to a failed worker(%s)", name)
+			eventChan <- Event{Level: LvlFatal, Worker: name, Message: msg}
+			panic(msg) // TODO: tbd, probably it is better to replace panic by os.Exit(1)
 		}
 
 		return err
@@ -105,9 +104,8 @@ RunPoint:
 				Level: LvlError, Worker: name,
 				Message: "Worker failed with panic",
 				Fields: map[string]interface{}{
-					"worker": name,
-					"error":  e.Error(),
-					"stack":  string(debug.Stack()),
+					"error": e.Error(),
+					"stack": string(debug.Stack()),
 				},
 			}
 		}()
@@ -117,8 +115,7 @@ RunPoint:
 			eventChan <- Event{
 				Level: LvlError, Worker: name,
 				Message: "Worker ended execution with error",
-				Fields: map[string]interface{}{
-					"worker": name, "error": e.Error()},
+				Fields:  map[string]interface{}{"error": e.Error()},
 			}
 		}
 		return
@@ -127,7 +124,6 @@ RunPoint:
 	eventChan <- Event{
 		Level: LvlInfo, Worker: name,
 		Message: "Run worker",
-		Fields:  map[string]interface{}{"worker": name},
 	}
 
 	panicked, err := runClosure()
@@ -135,7 +131,6 @@ RunPoint:
 		eventChan <- Event{
 			Level: LvlInfo, Worker: name,
 			Message: "Worker ended execution",
-			Fields:  map[string]interface{}{"worker": name},
 		}
 		return p.stopWorker(name)
 	}
@@ -146,7 +141,9 @@ RunPoint:
 
 	switch {
 	case w.restartMode == StopAppOnFail:
-		panic(fmt.Errorf("execution cannot be continued due to a failed worker(%s)", name))
+		msg := fmt.Sprintf("execution cannot be continued due to a failed worker(%s)", name)
+		eventChan <- Event{Level: LvlFatal, Worker: name, Message: msg}
+		panic(msg) // TODO: tbd, probably it is better to replace panic by os.Exit(1)
 
 	case (panicked && !w.restartMode.Is(RestartOnFail)) ||
 		(!panicked && !w.restartMode.Is(RestartOnError)):
@@ -164,14 +161,12 @@ RunPoint:
 			eventChan <- Event{
 				Level: LvlInfo, Worker: name,
 				Message: "Worker will be re-initialized and restarted",
-				Fields:  map[string]interface{}{"worker": name},
 			}
 			goto InitPoint
 		} else {
 			eventChan <- Event{
 				Level: LvlInfo, Worker: name,
 				Message: "Worker will be restarted",
-				Fields:  map[string]interface{}{"worker": name},
 			}
 			goto RunPoint
 		}

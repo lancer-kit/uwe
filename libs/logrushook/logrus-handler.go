@@ -1,4 +1,4 @@
-package logrus_hook
+package logrushook
 
 import (
 	"github.com/lancer-kit/uwe/v3"
@@ -17,6 +17,10 @@ func ChiefHandler(entry *logrus.Entry) uwe.EventHandler {
 		default:
 			level = logrus.WarnLevel
 		}
+		if event.Fields == nil {
+			event.Fields = map[string]interface{}{}
+		}
+		event.Fields["worker"] = event.Worker
 
 		entry.WithFields(event.Fields).Log(level, event.Message)
 	}

@@ -22,9 +22,9 @@ linters:
   - gofmt
   - lll
   - misspell
-  - scopelint
+  - exportloopref
   - gochecknoinits
-  - golint
+  - revive
   - gocritic
   - stylecheck
   - goimports

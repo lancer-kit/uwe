@@ -24,7 +24,7 @@ type Config struct {
 }
 
 // Validate - Validate config required fields
-func (c Config) Validate() error {
+func (c *Config) Validate() error {
 	if c.Host == "" {
 		return errors.New("host cannot be blank")
 	}
@@ -46,8 +46,9 @@ func (c *Config) TCPAddr() string {
 //
 //	To start an HTTPS server, look for a specific worker.
 type Server struct {
-	config Config
-	router http.Handler
+	config     Config
+	router     http.Handler
+	routerInit func(ctx uwe.Context) (http.Handler, error)
 }
 
 // NewServer returns a new instance of `Server` with the passed configuration and HTTP router.
@@ -55,6 +56,16 @@ func NewServer(config Config, router http.Handler) *Server {
 	return &Server{
 		config: config,
 		router: router,
+	}
+}
+
+// NewServerWithInitFunc returns a new instance of `Server` with the passed configuration.
+// Server router will be initialized during the call of Run() method.
+// This allows to pass and use uwe.Context in handlers, e.g. to use imq and Mailbox.
+func NewServerWithInitFunc(config Config, routerInit func(ctx uwe.Context) (http.Handler, error)) *Server {
+	return &Server{
+		config:     config,
+		routerInit: routerInit,
 	}
 }
 
@@ -67,6 +78,16 @@ func (s *Server) Run(ctx uwe.Context) error {
 	if s.config.ReadHeaderTimeout > 0 {
 		readHeaderTimeout = time.Duration(s.config.ReadHeaderTimeout) * time.Second
 	}
+
+	if s.router == nil {
+		var err error
+
+		s.router, err = s.routerInit(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
 	server := &http.Server{
 		Addr:              s.config.TCPAddr(),
 		Handler:           s.router,

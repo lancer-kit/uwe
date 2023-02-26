@@ -64,25 +64,36 @@ InitPoint:
 		return err
 	}
 
-	if err := w.worker.Init(); err != nil {
+	worker, ok := w.worker.(WorkerWithInit)
+	if ok {
+		if err := worker.Init(); err != nil {
+			eventChan <- Event{
+				Level: LvlFatal, Worker: name,
+				Message: "Worker can not be initialized due to an error",
+				Fields:  map[string]interface{}{"error": err.Error()},
+			}
+
+			if w.restartMode == StopAppOnFail {
+				msg := fmt.Sprintf("execution cannot be continued due to a failed worker(%s)", name)
+				eventChan <- Event{Level: LvlFatal, Worker: name, Message: msg}
+				panic(msg) // TODO: tbd, probably it is better to replace panic by os.Exit(1)
+			}
+
+			return err
+		}
 		eventChan <- Event{
-			Level: LvlFatal, Worker: name,
-			Message: "Worker can not be initialized due to an error",
-			Fields:  map[string]interface{}{"error": err.Error()},
+			Level: LvlInfo, Worker: name,
+			Message: "Worker is initialized",
 		}
-
-		if w.restartMode == StopAppOnFail {
-			msg := fmt.Sprintf("execution cannot be continued due to a failed worker(%s)", name)
-			eventChan <- Event{Level: LvlFatal, Worker: name, Message: msg}
-			panic(msg) // TODO: tbd, probably it is better to replace panic by os.Exit(1)
-		}
-
-		return err
 	}
 
 RunPoint:
 	if err := p.startWorker(name); err != nil {
 		return err
+	}
+	eventChan <- Event{
+		Level: LvlInfo, Worker: name,
+		Message: "Starting worker",
 	}
 
 	var runClosure = func() (panicked bool, e error) {

@@ -21,6 +21,7 @@ import (
 type Chief interface {
 	// AddWorker registers the worker in the pool.
 	AddWorker(WorkerName, Worker, ...WorkerOpts) Chief
+	AddWorkerAndLaunch(WorkerName, Worker, ...WorkerOpts) Chief
 	// GetWorkersStates returns the current state of all registered workers.
 	GetWorkersStates() map[WorkerName]sam.State
 	// EnableServiceSocket initializes `net.Socket` server for internal management purposes.
@@ -97,6 +98,11 @@ type chief struct {
 	shutdown         Shutdown
 	wPool            *workerPool
 
+	rtWorkersLaunched bool
+	rtWorkersMutex    sync.Mutex
+	rtWorkersWG       sync.WaitGroup
+	rtWorkersCtx      context.Context
+
 	eventMutexLocked bool
 	eventMutex       sync.Mutex
 	eventChan        chan Event
@@ -150,6 +156,21 @@ func (c *chief) AddWorker(name WorkerName, worker Worker, opts ...WorkerOpts) Ch
 	if err := c.wPool.setWorker(name, worker, opts); err != nil {
 		c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
 	}
+
+	return c
+}
+
+func (c *chief) AddWorkerAndLaunch(name WorkerName, worker Worker, opts ...WorkerOpts) Chief {
+	if err := c.wPool.setWorker(name, worker, opts); err != nil {
+		c.eventChan <- ErrorEvent(err.Error()).SetWorker(name)
+	}
+
+	if c.rtWorkersLaunched {
+		c.rtWorkersMutex.Lock()
+		c.launchWorker(name)
+		c.rtWorkersMutex.Unlock()
+	}
+
 	return c
 }
 
@@ -289,10 +310,12 @@ func (c *chief) handleEvents(stop <-chan struct{}) {
 }
 
 func (c *chief) runPool() error {
-	wg := new(sync.WaitGroup)
+	c.rtWorkersWG = sync.WaitGroup{}
 
 	var runCount int
 	ctx, cancel := context.WithCancel(c.ctx)
+	c.rtWorkersCtx = ctx
+	c.rtWorkersLaunched = true
 
 	if c.broker == nil {
 		c.broker = NewBroker(len(c.wPool.workers) * 4)
@@ -304,10 +327,7 @@ func (c *chief) runPool() error {
 
 	for _, name := range c.wPool.workersList() {
 		runCount++
-		wg.Add(1)
-
-		mailbox := c.broker.AddWorker(name)
-		go c.runWorker(NewContext(ctx, mailbox), name, wg.Done)
+		c.launchWorker(name)
 	}
 
 	if runCount == 0 {
@@ -315,16 +335,16 @@ func (c *chief) runPool() error {
 		return errors.New("unable to start: there is no initialized workers")
 	}
 
-	wg.Add(1)
+	c.rtWorkersWG.Add(1)
 	go func() {
-		defer wg.Done()
+		defer c.rtWorkersWG.Done()
 		c.broker.Serve(ctx)
 	}()
 
 	if c.sw != nil {
-		wg.Add(1)
+		c.rtWorkersWG.Add(1)
 		go func() {
-			defer wg.Done()
+			defer c.rtWorkersWG.Done()
 			if err := c.sw.Serve(ctx); err != nil {
 				c.eventChan <- ErrorEvent(
 					fmt.Sprintf("failed to run listener: %s", err)).
@@ -337,9 +357,15 @@ func (c *chief) runPool() error {
 	<-c.ctx.Done()
 
 	cancel()
-	wg.Wait()
+	c.rtWorkersWG.Wait()
 
 	return nil
+}
+
+func (c *chief) launchWorker(name WorkerName) {
+	c.rtWorkersWG.Add(1)
+	mailbox := c.broker.AddWorker(name)
+	go c.runWorker(NewContext(c.rtWorkersCtx, mailbox), name, c.rtWorkersWG.Done)
 }
 
 func (c *chief) runWorker(ctx Context, name WorkerName, doneCall func()) {
